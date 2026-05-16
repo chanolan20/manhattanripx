@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* DTF RIP — dark industrial precision UI */
+    --background: 220 14% 10%;
+    --foreground: 215 20% 88%;
+
+    --card: 220 13% 13%;
+    --card-foreground: 215 20% 88%;
+
+    --popover: 220 13% 13%;
+    --popover-foreground: 215 20% 88%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 220 14% 8%;
+
+    --secondary: 220 12% 18%;
+    --secondary-foreground: 215 16% 75%;
+
+    --muted: 220 11% 16%;
+    --muted-foreground: 215 12% 55%;
+
+    --accent: 199 89% 48%;
+    --accent-foreground: 220 14% 8%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 10% 22%;
+    --input: 220 10% 18%;
+    --ring: 199 89% 48%;
+
+    --radius: 0.375rem;
+
+    /* Status colors */
+    --status-running: 142 71% 45%;
+    --status-stopped: 215 12% 50%;
+    --status-error: 0 72% 51%;
+    --status-printing: 199 89% 48%;
+    --status-hold: 38 92% 50%;
+    --status-done: 142 71% 45%;
+    --status-pending: 215 12% 55%;
+    --status-processing: 262 83% 58%;
+
+    /* Ink channel colors */
+    --ink-c: 186 100% 41%;
+    --ink-m: 321 100% 50%;
+    --ink-y: 60 100% 50%;
+    --ink-k: 0 0% 12%;
+    --ink-w: 0 0% 95%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-size: 13px;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(220 10% 30%); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(220 10% 40%); }
+
+  /* Mono text for values */
+  .mono { font-family: 'JetBrains Mono', monospace; }
+}
+
+/* Custom utility classes */
+.panel {
+  @apply bg-card border border-border rounded-md overflow-hidden;
+}
+
+.panel-header {
+  @apply flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40 select-none;
+}
+
+.panel-title {
+  @apply text-xs font-semibold text-muted-foreground uppercase tracking-wider;
+}
+
+.ink-dot-c { background: hsl(var(--ink-c)); }
+.ink-dot-m { background: hsl(var(--ink-m)); }
+.ink-dot-y { background: hsl(var(--ink-y)); }
+.ink-dot-k { background: hsl(var(--ink-k)); border: 1px solid hsl(var(--border)); }
+.ink-dot-w { background: hsl(var(--ink-w)); border: 1px solid hsl(var(--border)); }
+
+.status-badge-done { @apply bg-green-900/30 text-green-400 border-green-800/50; }
+.status-badge-printing { @apply bg-blue-900/30 text-blue-400 border-blue-800/50; }
+.status-badge-processing { @apply bg-purple-900/30 text-purple-400 border-purple-800/50; }
+.status-badge-pending { @apply bg-zinc-800/60 text-zinc-400 border-zinc-700/50; }
+.status-badge-error { @apply bg-red-900/30 text-red-400 border-red-800/50; }
+.status-badge-hold { @apply bg-amber-900/30 text-amber-400 border-amber-800/50; }
+.status-badge-ripping { @apply bg-cyan-900/30 text-cyan-400 border-cyan-800/50; }
+.status-badge-stopped { @apply bg-zinc-800/60 text-zinc-400 border-zinc-700/50; }
+.status-badge-running { @apply bg-green-900/30 text-green-400 border-green-800/50; }
+
+.row-selected { @apply bg-primary/10 border-l-2 border-l-primary; }
+.row-hover { @apply hover:bg-muted/60 transition-colors cursor-pointer; }
+
+/* Slider custom */
+input[type="range"] {
+  @apply accent-primary;
+  height: 4px;
+}
+
+/* Tooltip */
+.tooltip {
+  @apply absolute z-50 bg-popover text-popover-foreground border border-border text-xs px-2 py-1 rounded shadow-lg pointer-events-none;
+}

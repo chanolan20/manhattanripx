@@ -1,0 +1,11 @@
+export default {
+  app: { name: "Manhattan RIP X", tagline: "Software RIP Profissional para DTF" },
+  nav: { queue: "Fila", gangSheet: "Folha Gang", printCut: "Impressão e Corte", color: "Cor", printModes: "Modos de Impressão", devices: "Dispositivos", settings: "Configurações", license: "Licença" },
+  queue: { title: "Fila de Impressão", empty: "Solte arquivos aqui", addJob: "Adicionar Trabalho", deleteJob: "Excluir", holdJob: "Pausar", releaseJob: "Liberar", printJob: "Imprimir", status: { pending: "Pendente", processing: "Processando", printing: "Imprimindo", done: "Concluído", hold: "Pausado", error: "Erro" } },
+  preview: { title: "Pré-visualização", substrate: "Substrato", whiteLayer: "Camada B", zoomIn: "Ampliar", zoomOut: "Reduzir", fit: "Ajustar", reRip: "Re-RIP", print: "Imprimir" },
+  settings: { title: "Preferências", general: "Geral", inkCost: "Custo de Tinta", print: "Impressão", display: "Exibição", language: "Idioma da interface", units: "Unidades de medida", autoRip: "RIP automático ao importar", autoPrint: "Impressão automática após RIP", showInkCost: "Mostrar custo de tinta", defaultDpi: "Resolução padrão", save: "Salvar", discard: "Descartar", printerName: "Nome da impressora CUPS" },
+  license: { title: "Licença e Ativação", status: { active: "Licenciado — Ativo", trial: "Modo de avaliação", expired: "Expirado", unlicensed: "Sem licença" }, activate: "Ativar licença", deactivate: "Desativar", keyPlaceholder: "MRXP-XXXX-XXXX-XXXX", plans: { pro: "Pro", enterprise: "Empresarial", trial: "Avaliação" }, trialJobs: "Trabalhos de avaliação usados", trialWarning: "Apenas {count} impressões restantes", activateSuccess: "Licença ativada", activateError: "Falha na ativação" },
+  printCut: { title: "Gerenciador de Impressão e Corte", cropMarks: "Marcas de corte", regMarks: "Marcas de registro", contourCut: "Caminho de corte de contorno", markLength: "Comprimento da marca", markGap: "Espaço da marca", bleed: "Sangria", tolerance: "Tolerância de autodetecção", expand: "Expansão de contorno" },
+  units: { inches: "Polegadas (in)", mm: "Milímetros (mm)", cm: "Centímetros (cm)" },
+  common: { save: "Salvar", cancel: "Cancelar", delete: "Excluir", close: "Fechar", ok: "OK", yes: "Sim", no: "Não", loading: "Carregando…", error: "Erro", success: "Sucesso" },
+};
