@@ -1,0 +1,326 @@
+name: Release — Build, Sign & Notarize macOS DMG
+
+# Triggers on version tags: v1.0.0, v1.2.3-beta, etc.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false  # Never cancel a release build
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1: Run full test suite before releasing
+  # ─────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Pre-release Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y imagemagick ghostscript
+          sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' \
+            /etc/ImageMagick-6/policy.xml || true
+      - run: npm ci
+      - run: npx vitest run
+        env:
+          NODE_ENV: test
+          CI: true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: Build web app
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-web:
+    name: Build Web App
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+      - name: Upload web dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: Build, Sign, Notarize macOS DMG
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-macos-dmg:
+    name: Build macOS DMG
+    runs-on: macos-14          # Apple Silicon runner (M1) — required for arm64 builds
+    needs: build-web
+
+    env:
+      # ── Signing & Notarization credentials (stored in GitHub repo secrets) ──
+      # See: https://docs.github.com/en/actions/security-guides/encrypted-secrets
+      APPLE_ID:                       ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD:    ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID:                  ${{ secrets.APPLE_TEAM_ID }}
+      # Code signing certificate (base64-encoded .p12 file)
+      APPLE_CERTIFICATE:              ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD:     ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      # electron-builder uses these env vars automatically
+      CSC_LINK:                       ${{ secrets.APPLE_CERTIFICATE }}
+      CSC_KEY_PASSWORD:               ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Download web dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dtf-rip/dist/
+
+      # ── Import signing certificate into macOS keychain ─────────────────────
+      - name: Import Apple code-signing certificate
+        if: env.APPLE_CERTIFICATE != ''
+        run: |
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/mrx-signing.keychain-db"
+          KEYCHAIN_PASSWORD="mrx_keychain_$(openssl rand -hex 8)"
+
+          # Decode base64 certificate
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+          # Create a temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12
+
+          # Add to keychain search list so electron-builder can find it
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
+
+          # Allow codesign to access the keychain without prompting
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+          echo "✅ Certificate imported"
+
+      # ── Install Electron project dependencies ──────────────────────────────
+      - name: Install Electron project dependencies
+        working-directory: manhattan-rip-x-electron
+        run: npm install
+
+      - name: Install electron-updater and electron-builder
+        working-directory: manhattan-rip-x-electron
+        run: npm install --save-dev electron-builder electron-updater
+
+      # ── Determine version from tag ─────────────────────────────────────────
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      # ── Patch version into package.json ───────────────────────────────────
+      - name: Update package.json version
+        working-directory: manhattan-rip-x-electron
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          npm pkg set version="$VERSION"
+          echo "✅ Set version to $VERSION"
+
+      # ── Build DMG via electron-builder ────────────────────────────────────
+      - name: Build macOS DMG (arm64 + x64 universal)
+        working-directory: manhattan-rip-x-electron
+        run: |
+          npx electron-builder \
+            --mac dmg \
+            --universal \
+            --config.mac.notarize.teamId="$APPLE_TEAM_ID" \
+            --publish never
+        env:
+          # electron-builder picks up notarization credentials from:
+          APPLE_ID:                    ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID:               ${{ secrets.APPLE_TEAM_ID }}
+          # Disable notarize if credentials not set (dev/fork builds)
+          SKIP_NOTARIZE: ${{ secrets.APPLE_ID == '' && 'true' || 'false' }}
+
+      # ── Fallback: build unsigned DMG if cert not available ─────────────────
+      - name: Build unsigned DMG (fallback — no cert)
+        if: env.APPLE_CERTIFICATE == ''
+        working-directory: manhattan-rip-x-electron
+        run: |
+          echo "⚠️ No signing cert — building unsigned DMG"
+          npx electron-builder \
+            --mac dmg \
+            --universal \
+            --publish never \
+            --config.mac.identity=null
+        continue-on-error: false
+
+      # ── Verify DMG was produced ────────────────────────────────────────────
+      - name: Verify DMG output
+        working-directory: manhattan-rip-x-electron
+        run: |
+          DMG=$(find dist -name "*.dmg" | head -1)
+          if [ -z "$DMG" ]; then
+            echo "❌ No DMG found in dist/"
+            ls -la dist/ || true
+            exit 1
+          fi
+          SIZE=$(du -sh "$DMG" | cut -f1)
+          echo "✅ DMG built: $DMG ($SIZE)"
+          echo "DMG_PATH=$DMG" >> $GITHUB_ENV
+          echo "DMG_NAME=$(basename "$DMG")" >> $GITHUB_ENV
+
+      # ── Upload DMG as artifact ─────────────────────────────────────────────
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ManhattanRIPX-${{ steps.version.outputs.version }}-macOS
+          path: manhattan-rip-x-electron/dist/*.dmg
+          retention-days: 90
+
+      # ── Clean up keychain ──────────────────────────────────────────────────
+      - name: Remove temporary keychain
+        if: always() && env.KEYCHAIN_PATH != ''
+        run: security delete-keychain "$KEYCHAIN_PATH" || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 4: Create GitHub Release with DMG attached
+  # ─────────────────────────────────────────────────────────────────────────────
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-macos-dmg
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      # ── Generate changelog from git log ───────────────────────────────────
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD 2>/dev/null || echo "- Initial release")
+          else
+            CHANGES=$(git log --pretty=format:"- %s (%h)" | head -20)
+          fi
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Download DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ManhattanRIPX-${{ steps.version.outputs.version }}-macOS
+          path: release-assets/
+
+      # ── Determine if pre-release ───────────────────────────────────────────
+      - name: Check pre-release
+        id: prerelease
+        run: |
+          TAG="${{ github.ref_name }}"
+          if echo "$TAG" | grep -qE '-(alpha|beta|rc)'; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Manhattan RIP X v${{ steps.version.outputs.version }}"
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          generate_release_notes: false
+          body: |
+            ## Manhattan RIP X v${{ steps.version.outputs.version }}
+
+            Professional DTF RIP software for Epson ET-8550 on macOS.
+
+            ### What's New
+            ${{ steps.changelog.outputs.changes }}
+
+            ---
+
+            ### Installation
+            1. Download `ManhattanRIPX-${{ steps.version.outputs.version }}.dmg`
+            2. Open the DMG and drag **Manhattan RIP X** to Applications
+            3. On first launch: right-click → Open (if macOS Gatekeeper prompts)
+
+            ### System Requirements
+            - macOS 12 Monterey or later (Apple Silicon + Intel universal binary)
+            - Epson ET-8550 with DTF ink set installed
+            - CUPS/AirPrint for direct printing
+
+            ### Checksums
+            ```
+            SHA256 checksums available in release assets
+            ```
+          files: |
+            release-assets/*.dmg
+            release-assets/*.blockmap
+            release-assets/*.yml
+          fail_on_unmatched_files: false
+
+      # ── Generate SHA256 checksums ──────────────────────────────────────────
+      - name: Attach checksum file
+        run: |
+          cd release-assets
+          sha256sum *.dmg > SHA256SUMS.txt 2>/dev/null || shasum -a 256 *.dmg > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload checksum to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: release-assets/SHA256SUMS.txt
+          fail_on_unmatched_files: false

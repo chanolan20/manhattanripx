@@ -1,0 +1,11 @@
+export default {
+  app: { name: "Manhattan RIP X", tagline: "Software RIP Professionale per DTF" },
+  nav: { queue: "Coda", gangSheet: "Foglio Gang", printCut: "Stampa e Taglio", color: "Colore", printModes: "Modalità di stampa", devices: "Dispositivi", settings: "Impostazioni", license: "Licenza" },
+  queue: { title: "Coda di stampa", empty: "Trascina file qui", addJob: "Aggiungi lavoro", deleteJob: "Elimina", holdJob: "Metti in pausa", releaseJob: "Rilascia", printJob: "Stampa", status: { pending: "In attesa", processing: "Elaborazione", printing: "Stampa", done: "Completato", hold: "Pausa", error: "Errore" } },
+  preview: { title: "Anteprima", substrate: "Substrato", whiteLayer: "Strato B", zoomIn: "Ingrandisci", zoomOut: "Riduci", fit: "Adatta", reRip: "Re-RIP", print: "Stampa" },
+  settings: { title: "Preferenze", general: "Generale", inkCost: "Costo Inchiostro", print: "Stampa", display: "Schermo", language: "Lingua interfaccia", units: "Unità di misura", autoRip: "RIP automatico all'importazione", autoPrint: "Stampa automatica dopo RIP", showInkCost: "Mostra costo inchiostro", defaultDpi: "Risoluzione predefinita", save: "Salva", discard: "Annulla", printerName: "Nome stampante CUPS" },
+  license: { title: "Licenza e Attivazione", status: { active: "Licenziato — Attivo", trial: "Modalità prova", expired: "Scaduto", unlicensed: "Non licenziato" }, activate: "Attiva licenza", deactivate: "Disattiva", keyPlaceholder: "MRXP-XXXX-XXXX-XXXX", plans: { pro: "Pro", enterprise: "Enterprise", trial: "Prova" }, trialJobs: "Lavori di prova utilizzati", trialWarning: "Solo {count} stampe di prova rimaste", activateSuccess: "Licenza attivata", activateError: "Attivazione fallita" },
+  printCut: { title: "Gestore Stampa e Taglio", cropMarks: "Tacche di taglio", regMarks: "Crocini di registro", contourCut: "Tracciato di taglio contorno", markLength: "Lunghezza tacche", markGap: "Spazio tacche", bleed: "Abbondanza", tolerance: "Tolleranza auto-rilevamento", expand: "Espansione contorno" },
+  units: { inches: "Pollici (in)", mm: "Millimetri (mm)", cm: "Centimetri (cm)" },
+  common: { save: "Salva", cancel: "Annulla", delete: "Elimina", close: "Chiudi", ok: "OK", yes: "Sì", no: "No", loading: "Caricamento…", error: "Errore", success: "Successo" },
+};

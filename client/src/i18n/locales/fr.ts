@@ -1,0 +1,11 @@
+export default {
+  app: { name: "Manhattan RIP X", tagline: "Logiciel RIP professionnel pour DTF" },
+  nav: { queue: "File", gangSheet: "Gang Sheet", printCut: "Imprimer & Découper", color: "Couleur", printModes: "Modes d'impression", devices: "Appareils", settings: "Paramètres", license: "Licence" },
+  queue: { title: "File d'attente", empty: "Déposez des fichiers ici", addJob: "Ajouter un travail", deleteJob: "Supprimer", holdJob: "Mettre en pause", releaseJob: "Libérer", printJob: "Imprimer", status: { pending: "En attente", processing: "En cours", printing: "Impression", done: "Terminé", hold: "Pause", error: "Erreur" } },
+  preview: { title: "Aperçu", substrate: "Substrat", whiteLayer: "Couche B", zoomIn: "Zoom avant", zoomOut: "Zoom arrière", fit: "Ajuster", reRip: "Re-RIP", print: "Imprimer" },
+  settings: { title: "Préférences", general: "Général", inkCost: "Coût d'encre", print: "Impression", display: "Affichage", language: "Langue d'interface", units: "Unités de mesure", autoRip: "RIP automatique à l'import", autoPrint: "Impression automatique après RIP", showInkCost: "Afficher le coût d'encre", defaultDpi: "Résolution par défaut", save: "Enregistrer", discard: "Annuler", printerName: "Nom imprimante CUPS" },
+  license: { title: "Licence et Activation", status: { active: "Licencié — Actif", trial: "Mode d'essai", expired: "Expiré", unlicensed: "Non licencié" }, activate: "Activer la licence", deactivate: "Désactiver", keyPlaceholder: "MRXP-XXXX-XXXX-XXXX", plans: { pro: "Pro", enterprise: "Entreprise", trial: "Essai" }, trialJobs: "Travaux d'essai utilisés", trialWarning: "Seulement {count} impressions restantes", activateSuccess: "Licence activée", activateError: "Échec de l'activation" },
+  printCut: { title: "Gestionnaire Impression & Découpe", cropMarks: "Traits de coupe", regMarks: "Repères de repérage", contourCut: "Tracé de découpe de contour", markLength: "Longueur des traits", markGap: "Espace des traits", bleed: "Fond perdu", tolerance: "Tolérance auto-détection", expand: "Expansion contour" },
+  units: { inches: "Pouces (po)", mm: "Millimètres (mm)", cm: "Centimètres (cm)" },
+  common: { save: "Enregistrer", cancel: "Annuler", delete: "Supprimer", close: "Fermer", ok: "OK", yes: "Oui", no: "Non", loading: "Chargement…", error: "Erreur", success: "Succès" },
+};

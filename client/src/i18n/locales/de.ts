@@ -1,0 +1,11 @@
+export default {
+  app: { name: "Manhattan RIP X", tagline: "Professionelle DTF RIP-Software" },
+  nav: { queue: "Warteschlange", gangSheet: "Gang-Bogen", printCut: "Druck & Schnitt", color: "Farbe", printModes: "Druckmodi", devices: "Geräte", settings: "Einstellungen", license: "Lizenz" },
+  queue: { title: "Warteschlange", empty: "Dateien hier ablegen", addJob: "Auftrag hinzufügen", deleteJob: "Löschen", holdJob: "Pausieren", releaseJob: "Freigeben", printJob: "Drucken", status: { pending: "Ausstehend", processing: "Verarbeitung", printing: "Drucken", done: "Fertig", hold: "Pause", error: "Fehler" } },
+  preview: { title: "Vorschau", substrate: "Substrat", whiteLayer: "W-Schicht", zoomIn: "Vergrößern", zoomOut: "Verkleinern", fit: "Anpassen", reRip: "Neu-RIP", print: "Drucken" },
+  settings: { title: "Einstellungen", general: "Allgemein", inkCost: "Tintenkosten", print: "Druck", display: "Anzeige", language: "Sprache", units: "Maßeinheiten", autoRip: "Automatisch RIP beim Import", autoPrint: "Automatisch drucken nach RIP", showInkCost: "Tintenkosten anzeigen", defaultDpi: "Standard-Auflösung", save: "Speichern", discard: "Verwerfen", printerName: "CUPS-Druckername" },
+  license: { title: "Lizenz & Aktivierung", status: { active: "Lizenziert — Aktiv", trial: "Testmodus", expired: "Abgelaufen", unlicensed: "Nicht lizenziert" }, activate: "Lizenz aktivieren", deactivate: "Deaktivieren", keyPlaceholder: "MRXP-XXXX-XXXX-XXXX", plans: { pro: "Pro", enterprise: "Unternehmen", trial: "Test" }, trialJobs: "Testaufträge verwendet", trialWarning: "Noch {count} Testdrucke übrig", activateSuccess: "Lizenz aktiviert", activateError: "Aktivierung fehlgeschlagen" },
+  printCut: { title: "Druck- & Schnittmanager", cropMarks: "Schnittmarken", regMarks: "Passermarken", contourCut: "Konturschnittlinie", markLength: "Markenlänge", markGap: "Markenabstand", bleed: "Anschnitt", tolerance: "Auto-Erkennungstoleranz", expand: "Konturerweiterung" },
+  units: { inches: "Zoll (in)", mm: "Millimeter (mm)", cm: "Zentimeter (cm)" },
+  common: { save: "Speichern", cancel: "Abbrechen", delete: "Löschen", close: "Schließen", ok: "OK", yes: "Ja", no: "Nein", loading: "Laden…", error: "Fehler", success: "Erfolg" },
+};
