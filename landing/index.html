@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manhattan RIP X — Professional DTF RIP Software for Mac & Windows</title>
+  <meta name="description" content="Manhattan RIP X is the professional DTF RIP software built for the Epson ET-8550. Gang sheets, AI profiling, hot folders, Shopify integration. Mac & Windows." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0c10;
+      --surface:   #111318;
+      --surface2:  #181c23;
+      --border:    rgba(255,255,255,0.07);
+      --border2:   rgba(255,255,255,0.12);
+      --text:      #f0f2f5;
+      --muted:     #6b7280;
+      --accent:    #00b4d8;
+      --accent2:   #0077b6;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --yellow:    #f59e0b;
+      --radius:    10px;
+      --radius-lg: 16px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+
+    /* ── Nav ─────────────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5vw; height: 64px;
+      background: rgba(10,12,16,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 1.1rem; letter-spacing: -0.02em;
+    }
+    .nav-logo svg { width: 32px; height: 32px; }
+    .nav-links { display: flex; gap: 28px; }
+    .nav-links a { font-size: 0.85rem; color: var(--muted); font-weight: 500; transition: color .2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent); color: #000; font-weight: 700;
+      font-size: 0.82rem; padding: 8px 20px; border-radius: 6px;
+      letter-spacing: 0.01em; transition: opacity .2s;
+    }
+    .nav-cta:hover { opacity: 0.85; }
+
+    /* ── Hero ─────────────────────────────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 120px 5vw 80px;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,180,216,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0,119,182,0.10) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(0,180,216,0.1); border: 1px solid rgba(0,180,216,0.25);
+      color: var(--accent); font-size: 0.75rem; font-weight: 600;
+      padding: 5px 14px; border-radius: 20px; margin-bottom: 28px;
+      letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .hero-badge span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+
+    h1 {
+      font-size: clamp(2.6rem, 6vw, 5rem);
+      font-weight: 900; letter-spacing: -0.04em; line-height: 1.05;
+      max-width: 900px; margin: 0 auto 24px;
+    }
+    h1 .accent { color: var(--accent); }
+    h1 .dim { color: var(--muted); }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.2rem); color: var(--muted);
+      max-width: 600px; margin: 0 auto 48px; line-height: 1.7;
+    }
+
+    .hero-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 64px; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent); color: #000;
+      font-weight: 700; font-size: 0.95rem; padding: 14px 28px;
+      border-radius: 8px; transition: all .2s; letter-spacing: -0.01em;
+    }
+    .btn-primary:hover { background: #29d4f5; transform: translateY(-1px); box-shadow: 0 8px 32px rgba(0,180,216,0.3); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--surface2); color: var(--text);
+      font-weight: 600; font-size: 0.95rem; padding: 14px 28px;
+      border-radius: 8px; border: 1px solid var(--border2); transition: all .2s;
+    }
+    .btn-secondary:hover { background: var(--surface); border-color: var(--accent); }
+
+    .platform-badges { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .platform-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; color: var(--muted); font-weight: 500;
+    }
+    .platform-badge svg { width: 16px; height: 16px; opacity: .6; }
+
+    /* ── App screenshot mockup ─────────────────────────────────────────── */
+    .hero-mockup {
+      width: 100%; max-width: 1100px; margin: 64px auto 0;
+      position: relative;
+    }
+    .mockup-window {
+      background: #111318;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.05),
+        0 32px 80px rgba(0,0,0,0.7),
+        0 0 80px rgba(0,180,216,0.06);
+    }
+    .mockup-titlebar {
+      background: #0d1117; padding: 10px 16px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #febc2e; }
+    .dot-g { background: #28c840; }
+    .mockup-title { font-size: 0.75rem; color: var(--muted); margin-left: auto; margin-right: auto; font-weight: 500; }
+
+    /* Fake UI inside mockup */
+    .mockup-body { display: flex; height: 480px; }
+    .mockup-queue {
+      width: 58%; border-right: 1px solid rgba(255,255,255,0.06);
+      display: flex; flex-direction: column;
+    }
+    .mockup-toolbar {
+      background: #0d1117; padding: 8px 12px;
+      display: flex; gap: 6px; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .tb-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 4px 8px; border-radius: 4px; cursor: default;
+    }
+    .tb-icon { width: 18px; height: 18px; background: rgba(255,255,255,0.12); border-radius: 3px; }
+    .tb-icon.accent { background: rgba(0,180,216,0.35); }
+    .tb-icon.danger { background: rgba(239,68,68,0.3); }
+    .tb-label { font-size: 8px; color: var(--muted); font-family: 'Inter'; }
+    .tb-sep { width: 1px; height: 28px; background: rgba(255,255,255,0.06); margin: 0 2px; }
+
+    .mockup-tabs {
+      display: flex; gap: 0; background: #0d1117;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 0 8px;
+    }
+    .m-tab {
+      font-size: 9px; padding: 7px 12px; color: var(--muted); font-weight: 500;
+      border-bottom: 2px solid transparent; white-space: nowrap;
+    }
+    .m-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .m-tab.dot-badge::after {
+      content: '5'; margin-left: 4px;
+      background: rgba(0,180,216,0.2); color: var(--accent);
+      font-size: 8px; padding: 1px 4px; border-radius: 8px;
+    }
+
+    .mockup-colheads {
+      display: grid; grid-template-columns: 1fr 70px 80px 40px 50px 90px;
+      padding: 4px 12px; background: #0d1117;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .col-h { font-size: 8px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+    .mockup-joblist { flex: 1; overflow: hidden; }
+    .m-job {
+      display: grid; grid-template-columns: 1fr 70px 80px 40px 50px 90px;
+      padding: 5px 12px; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .m-job:hover { background: rgba(255,255,255,0.02); }
+    .m-job.selected { background: rgba(0,180,216,0.08); }
+    .m-job-name { font-size: 9px; font-weight: 600; color: var(--text); }
+    .m-job-sub { font-size: 7px; color: var(--muted); margin-top: 1px; }
+    .m-status {
+      font-size: 7px; font-weight: 700; padding: 2px 6px; border-radius: 3px;
+      width: fit-content;
+    }
+    .s-printing { background: rgba(0,180,216,0.15); color: var(--accent); }
+    .s-pending  { background: rgba(107,114,128,0.15); color: var(--muted); }
+    .s-hold     { background: rgba(245,158,11,0.15); color: var(--yellow); }
+    .s-error    { background: rgba(239,68,68,0.15); color: var(--red); }
+    .m-cell { font-size: 8px; color: var(--muted); }
+    .m-cell.mono { font-family: 'JetBrains Mono', monospace; font-size: 8px; color: rgba(240,242,245,0.7); }
+
+    .progress-bar {
+      height: 2px; background: rgba(0,180,216,0.2); margin-top: 2px;
+      border-radius: 1px; overflow: hidden;
+    }
+    .progress-fill { height: 100%; background: var(--accent); width: 65%; }
+
+    /* Mockup right panel */
+    .mockup-right { flex: 1; display: flex; flex-direction: column; }
+    .mockup-canvas {
+      flex: 1; background: #1a1e26; display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .canvas-rulers-h {
+      position: absolute; top: 0; left: 0; right: 0; height: 14px;
+      background: #0d1117; border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; padding: 0 6px;
+    }
+    .ruler-tick { width: 1px; height: 6px; background: rgba(255,255,255,0.15); }
+    .canvas-sheet {
+      width: 160px; height: 200px;
+      background: white;
+      border-radius: 2px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+      position: relative; margin-top: 14px;
+    }
+    .canvas-job {
+      position: absolute; top: 40px; left: 30px;
+      width: 90px; height: 60px;
+      border: 1.5px dashed var(--accent);
+      border-radius: 2px;
+      background: rgba(0,180,216,0.08);
+    }
+    .canvas-job::after {
+      content: 'ManhattanViral_Logo'; position: absolute;
+      bottom: -16px; left: 0; right: 0;
+      font-size: 7px; color: var(--accent); text-align: center;
+    }
+    /* handles */
+    .handle {
+      position: absolute; width: 6px; height: 6px;
+      background: var(--accent); border: 1px solid #000; border-radius: 1px;
+    }
+    .h-tl { top: -3px; left: -3px; }
+    .h-tr { top: -3px; right: -3px; }
+    .h-bl { bottom: -3px; left: -3px; }
+    .h-br { bottom: -3px; right: -3px; }
+
+    .mockup-smartbar {
+      background: #0d1117; border-top: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 10px; font-size: 8px;
+    }
+    .sb-tabs { display: flex; gap: 0; margin-bottom: 6px; }
+    .sb-tab { padding: 2px 10px; font-size: 8px; color: var(--muted); border-bottom: 1.5px solid transparent; }
+    .sb-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+    .sb-dropdown {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 3px; padding: 3px 6px; font-size: 8px; color: var(--text);
+      width: 100%; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .sb-btns { display: flex; gap: 3px; margin-bottom: 4px; }
+    .sb-btn {
+      flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 3px; padding: 3px; font-size: 7px; color: var(--text); text-align: center;
+    }
+    .sb-fields { display: flex; gap: 6px; margin-bottom: 4px; }
+    .sb-field { display: flex; flex-direction: column; gap: 1px; }
+    .sb-field-label { font-size: 6px; color: var(--muted); }
+    .sb-field-input {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 2px; padding: 2px 4px; font-size: 8px; width: 44px;
+      font-family: 'JetBrains Mono', monospace; color: var(--text);
+    }
+    .sb-coloradj {
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 3px; padding: 4px; font-size: 8px; color: var(--text);
+      text-align: center; width: 100%; margin-bottom: 3px; font-weight: 600;
+    }
+    .sb-action-row { display: flex; gap: 3px; margin-bottom: 4px; }
+    .sb-action { flex:1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius:3px; padding:3px; font-size:7px; color:var(--muted); text-align:center; }
+    .sb-bottom { display: flex; justify-content: flex-end; gap: 4px; }
+    .sb-apply { background: var(--accent); color: #000; font-size: 7px; font-weight: 700; padding: 3px 10px; border-radius: 3px; }
+    .sb-print { background: var(--red); color: white; font-size: 7px; font-weight: 700; padding: 3px 10px; border-radius: 3px; }
+
+    /* ink bars */
+    .mockup-inkbar {
+      position: absolute; top: 8px; right: 8px;
+      display: flex; gap: 3px; align-items: flex-end;
+    }
+    .ink-col { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .ink-bar-wrap { width: 8px; height: 20px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+    .ink-fill { width: 100%; border-radius: 2px; }
+    .ink-label { font-size: 6px; color: var(--muted); }
+
+    /* ── Stats ─────────────────────────────────────────────────────────── */
+    .stats {
+      display: flex; justify-content: center; gap: 0;
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      margin: 0; padding: 0 5vw;
+      background: var(--surface);
+    }
+    .stat {
+      flex: 1; text-align: center; padding: 36px 20px;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat-num { font-size: 2.4rem; font-weight: 900; color: var(--accent); letter-spacing: -0.04em; line-height: 1; margin-bottom: 6px; }
+    .stat-label { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+
+    /* ── Section layout ────────────────────────────────────────────────── */
+    section { padding: 100px 5vw; }
+    .section-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 16px;
+    }
+    h2 {
+      font-size: clamp(1.8rem, 4vw, 3rem); font-weight: 800;
+      letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 16px;
+    }
+    .section-sub { font-size: 1.05rem; color: var(--muted); max-width: 580px; line-height: 1.7; }
+
+    /* ── Features grid ─────────────────────────────────────────────────── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1px; background: var(--border); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden; margin-top: 64px;
+    }
+    .feature-card {
+      background: var(--surface); padding: 36px 32px;
+      transition: background .2s;
+    }
+    .feature-card:hover { background: var(--surface2); }
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: rgba(0,180,216,0.1); border: 1px solid rgba(0,180,216,0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+    }
+    .feature-icon svg { width: 22px; height: 22px; stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .feature-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.02em; }
+    .feature-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.65; }
+
+    /* ── Compared ──────────────────────────────────────────────────────── */
+    .compare-table {
+      width: 100%; border-collapse: collapse;
+      margin-top: 48px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+      overflow: hidden; font-size: 0.9rem;
+    }
+    .compare-table th {
+      background: var(--surface2); padding: 16px 24px;
+      text-align: left; font-size: 0.8rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .compare-table th.highlight { color: var(--accent); }
+    .compare-table td {
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+    .check { color: var(--green); font-size: 1.1rem; }
+    .cross { color: var(--muted); font-size: 1.1rem; }
+    .tag-new {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      background: rgba(0,180,216,0.15); color: var(--accent);
+      padding: 2px 7px; border-radius: 4px; margin-left: 8px;
+      letter-spacing: 0.04em; text-transform: uppercase; vertical-align: middle;
+    }
+
+    /* ── Pricing ───────────────────────────────────────────────────────── */
+    .pricing-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px; margin-top: 56px;
+    }
+    .pricing-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 36px 32px;
+      display: flex; flex-direction: column; position: relative;
+      transition: border-color .2s;
+    }
+    .pricing-card:hover { border-color: var(--border2); }
+    .pricing-card.popular {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(0,180,216,0.06) 0%, var(--surface) 60%);
+    }
+    .popular-badge {
+      position: absolute; top: -13px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #000; font-size: 0.7rem; font-weight: 800;
+      padding: 4px 16px; border-radius: 20px; letter-spacing: 0.06em;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    .plan-name { font-size: 0.8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+    .plan-price { display: flex; align-items: baseline; gap: 4px; margin-bottom: 6px; }
+    .plan-price .amount { font-size: 3rem; font-weight: 900; letter-spacing: -0.04em; }
+    .plan-price .period { font-size: 0.9rem; color: var(--muted); }
+    .plan-alt { font-size: 0.8rem; color: var(--muted); margin-bottom: 28px; }
+    .plan-features { list-style: none; display: flex; flex-direction: column; gap: 10px; flex: 1; margin-bottom: 28px; }
+    .plan-features li { font-size: 0.88rem; display: flex; align-items: flex-start; gap: 10px; }
+    .plan-features li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .plan-features li.no::before { content: '–'; color: var(--muted); }
+    .plan-btn {
+      display: block; text-align: center; padding: 13px;
+      border-radius: 8px; font-weight: 700; font-size: 0.9rem;
+      transition: all .2s;
+    }
+    .plan-btn.primary { background: var(--accent); color: #000; }
+    .plan-btn.primary:hover { background: #29d4f5; }
+    .plan-btn.outline {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border2);
+    }
+    .plan-btn.outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Printers ──────────────────────────────────────────────────────── */
+    .printer-grid {
+      display: flex; flex-wrap: wrap; gap: 12px; margin-top: 48px;
+    }
+    .printer-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px; font-size: 0.85rem; font-weight: 500;
+    }
+    .printer-pill.featured { border-color: var(--accent); color: var(--accent); }
+    .printer-pill svg { width: 16px; height: 16px; }
+
+    /* ── CTA ───────────────────────────────────────────────────────────── */
+    .cta-section {
+      text-align: center; padding: 120px 5vw;
+      background: linear-gradient(180deg, transparent 0%, rgba(0,180,216,0.05) 50%, transparent 100%);
+      border-top: 1px solid var(--border);
+    }
+    .cta-section h2 { margin-bottom: 20px; }
+    .cta-section .section-sub { margin: 0 auto 40px; }
+
+    /* ── Footer ────────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 48px 5vw; display: flex;
+      justify-content: space-between; align-items: center; flex-wrap: gap;
+      gap: 24px;
+    }
+    .footer-logo { font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+    .footer-links a { font-size: 0.82rem; color: var(--muted); transition: color .2s; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { font-size: 0.78rem; color: var(--muted); }
+
+    /* ── Responsive ────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .stats { flex-direction: column; }
+      .stat { border-right: none; border-bottom: 1px solid var(--border); }
+      .stat:last-child { border-bottom: none; }
+      .compare-table { font-size: 0.78rem; }
+      .compare-table th, .compare-table td { padding: 10px 14px; }
+      footer { flex-direction: column; align-items: flex-start; }
+      .mockup-body { height: 320px; }
+      .mockup-queue { width: 100%; }
+      .mockup-right { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ───────────────────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-logo">
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="7" fill="#00b4d8"/>
+      <path d="M6 24V10l6 8 4-6 4 6 6-8v14" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24" cy="10" r="2" fill="#000"/>
+    </svg>
+    Manhattan RIP X
+  </div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#compare">Compare</a>
+    <a href="#printers">Printers</a>
+    <a href="#pricing">Pricing</a>
+  </div>
+  <a href="https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-2.0.0-arm64.dmg" class="nav-cta" id="nav-dl">Download Free Trial</a>
+</nav>
+
+<!-- ── Hero ──────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-badge">
+    <span></span>
+    v2.0 · Mac &amp; Windows · No Subscription Required
+  </div>
+
+  <h1>
+    Stop Wasting Ink.<br>
+    <span class="accent">Start Printing Profit.</span>
+  </h1>
+
+  <p class="hero-sub">
+    Gang sheets, AI color profiling, hot folders, Shopify integration, and
+    real-time nesting — all in one app built specifically for the Epson ET-8550
+    and compatible DTF printers.
+  </p>
+
+  <div class="hero-ctas">
+    <a href="https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-2.0.0-arm64.dmg" class="btn-primary" id="hero-dl-mac">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download Free Trial
+    </a>
+    <a href="#features" class="btn-secondary">See All Features</a>
+  </div>
+
+  <div class="platform-badges">
+    <div class="platform-badge">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      macOS 12+
+    </div>
+    <div class="platform-badge">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+      Windows 10/11
+    </div>
+    <div class="platform-badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Apple Silicon &amp; Intel
+    </div>
+  </div>
+
+  <!-- App Mockup -->
+  <div class="hero-mockup">
+    <div class="mockup-window">
+      <div class="mockup-titlebar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <div class="mockup-title">Manhattan RIP X — DTF Edition — Epson ET-8550</div>
+        <span style="font-size:8px;color:var(--green);margin-left:auto;">● Epson ET-8550 DTF ONLINE</span>
+      </div>
+      <div class="mockup-body">
+        <!-- Left: Queue -->
+        <div class="mockup-queue">
+          <div class="mockup-toolbar">
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Open</div></div>
+            <div class="tb-btn"><div class="tb-icon danger"></div><div class="tb-label">Remove</div></div>
+            <div class="tb-sep"></div>
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Hold</div></div>
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Release</div></div>
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Spool</div></div>
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Print</div></div>
+            <div class="tb-btn"><div class="tb-icon accent"></div><div class="tb-label">Rip Only</div></div>
+            <div class="tb-sep"></div>
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Center</div></div>
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Fit Page</div></div>
+            <div class="tb-sep"></div>
+            <div class="tb-btn"><div class="tb-icon accent"></div><div class="tb-label">Color Adj</div></div>
+            <div class="tb-btn"><div class="tb-icon"></div><div class="tb-label">Queues</div></div>
+            <div style="margin-left:auto;display:flex;gap:3px;align-items:flex-end;">
+              <div class="ink-col"><div class="ink-bar-wrap"><div class="ink-fill" style="height:72%;background:#00b8d9;margin-top:auto;"></div></div><div class="ink-label">C</div></div>
+              <div class="ink-col"><div class="ink-bar-wrap"><div class="ink-fill" style="height:55%;background:#ff006e;margin-top:auto;"></div></div><div class="ink-label">M</div></div>
+              <div class="ink-col"><div class="ink-bar-wrap"><div class="ink-fill" style="height:88%;background:#ffd000;margin-top:auto;"></div></div><div class="ink-label">Y</div></div>
+              <div class="ink-col"><div class="ink-bar-wrap"><div class="ink-fill" style="height:61%;background:#888;margin-top:auto;"></div></div><div class="ink-label">K</div></div>
+              <div class="ink-col"><div class="ink-bar-wrap"><div class="ink-fill" style="height:45%;background:#ddd;margin-top:auto;"></div></div><div class="ink-label">W</div></div>
+            </div>
+          </div>
+          <div class="mockup-tabs">
+            <div class="m-tab active dot-badge">Production Queue</div>
+            <div class="m-tab">Proofing Queue</div>
+            <div class="m-tab">Gang Sheet Builder</div>
+            <div class="m-tab">Hot Folder</div>
+            <div class="m-tab">AI Profiler</div>
+          </div>
+          <div class="mockup-colheads">
+            <div class="col-h">Name</div>
+            <div class="col-h">Status</div>
+            <div class="col-h">Print Mode</div>
+            <div class="col-h">Copies</div>
+            <div class="col-h">Cost</div>
+            <div class="col-h">Dimensions</div>
+          </div>
+          <div class="mockup-joblist">
+            <div class="m-job">
+              <div><div class="m-job-name">StreetWear_Design_v2</div><div class="m-job-sub">StreetWear_Design_v2.png</div><div class="progress-bar"><div class="progress-fill"></div></div></div>
+              <div><div class="m-status s-printing">PRINTING</div></div>
+              <div class="m-cell">1440×720 CO…</div>
+              <div class="m-cell mono">1</div>
+              <div class="m-cell mono">$0.42</div>
+              <div class="m-cell mono">10.00" × 12.00"</div>
+            </div>
+            <div class="m-job selected">
+              <div><div class="m-job-name">ManhattanViral_Logo</div><div class="m-job-sub">ManhattanViral_Logo.png</div></div>
+              <div><div class="m-status s-pending">PENDING</div></div>
+              <div class="m-cell">1440×720 CO…</div>
+              <div class="m-cell mono">3</div>
+              <div class="m-cell mono">$0.18</div>
+              <div class="m-cell mono">8.00" × 6.00"</div>
+            </div>
+            <div class="m-job">
+              <div><div class="m-job-name">BoroughDrops_Graphic</div><div class="m-job-sub">BoroughDrops_Graphic.png</div></div>
+              <div><div class="m-status s-pending">PENDING</div></div>
+              <div class="m-cell">1440×720 CO…</div>
+              <div class="m-cell mono">5</div>
+              <div class="m-cell mono">$0.22</div>
+              <div class="m-cell mono">6.00" × 6.00"</div>
+            </div>
+            <div class="m-job">
+              <div><div class="m-job-name">NYC_Graffiti_Art</div><div class="m-job-sub">NYC_Graffiti_Art.png</div></div>
+              <div><div class="m-status s-hold">HOLD</div></div>
+              <div class="m-cell">1440×720 CO…</div>
+              <div class="m-cell mono">2</div>
+              <div class="m-cell mono">$0.31</div>
+              <div class="m-cell mono">12.00" × 8.00"</div>
+            </div>
+            <div class="m-job">
+              <div><div class="m-job-name">VinylDrop_Collab</div><div class="m-job-sub">VinylDrop_Collab.png</div></div>
+              <div><div class="m-status s-error">ERROR</div></div>
+              <div class="m-cell">1440×720 CO…</div>
+              <div class="m-cell mono">1</div>
+              <div class="m-cell mono">$0.27</div>
+              <div class="m-cell mono">9.00" × 9.00"</div>
+            </div>
+          </div>
+        </div>
+        <!-- Right: Canvas + SmartBar -->
+        <div class="mockup-right">
+          <div class="mockup-canvas">
+            <div style="position:absolute;top:0;left:0;right:0;height:14px;background:#0d1117;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 8px;gap:6px;">
+              <span style="font-size:7px;color:var(--muted);">Substrate:</span>
+              <div style="width:12px;height:12px;background:white;border-radius:2px;border:1px solid rgba(255,255,255,0.15);"></div>
+              <div style="width:12px;height:12px;background:#111;border-radius:2px;border:1px solid rgba(255,255,255,0.15);"></div>
+              <span style="margin-left:auto;font-size:7px;color:var(--accent);">Soft Proof</span>
+            </div>
+            <div class="canvas-sheet">
+              <div class="canvas-job">
+                <div class="handle h-tl"></div>
+                <div class="handle h-tr"></div>
+                <div class="handle h-bl"></div>
+                <div class="handle h-br"></div>
+              </div>
+            </div>
+          </div>
+          <!-- SmartBar -->
+          <div class="mockup-smartbar">
+            <div class="sb-tabs">
+              <div class="sb-tab">Queue</div>
+              <div class="sb-tab">Page</div>
+              <div class="sb-tab active">Job</div>
+            </div>
+            <div class="sb-dropdown">
+              <span>Single Weight Matte Paper 1440×720 Best</span>
+              <span style="color:var(--muted);">▾</span>
+            </div>
+            <div class="sb-btns">
+              <div class="sb-btn">Copies…</div>
+              <div class="sb-btn">Tiles…</div>
+              <div class="sb-btn">Duplicate</div>
+            </div>
+            <div style="font-size:7px;color:var(--muted);margin-bottom:3px;">ManhattanViral_Logo.png</div>
+            <div class="sb-fields">
+              <div class="sb-field"><div class="sb-field-label">W (in)</div><div class="sb-field-input">8.00</div></div>
+              <div class="sb-field"><div class="sb-field-label">H (in)</div><div class="sb-field-input">6.00</div></div>
+              <div class="sb-field"><div class="sb-field-label">Scale %</div><div class="sb-field-input">100</div></div>
+              <div class="sb-field"><div class="sb-field-label">Rotate</div><div class="sb-field-input">None</div></div>
+            </div>
+            <div class="sb-coloradj">Color Adjust</div>
+            <div class="sb-action-row">
+              <div class="sb-action">Crop Mark</div>
+              <div class="sb-action">Invert</div>
+              <div class="sb-action">Mirror</div>
+              <div class="sb-action">Layer</div>
+            </div>
+            <div class="sb-bottom">
+              <div class="sb-apply">Apply</div>
+              <div class="sb-print">🖨 Print</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Stats ──────────────────────────────────────────────────────────────── -->
+<div class="stats">
+  <div class="stat"><div class="stat-num">60%</div><div class="stat-label">Less ink waste with AI profiles</div></div>
+  <div class="stat"><div class="stat-num">$296</div><div class="stat-label">Cheaper per year than competitors</div></div>
+  <div class="stat"><div class="stat-num">25</div><div class="stat-label">Free prints — no card needed</div></div>
+  <div class="stat"><div class="stat-num">2×</div><div class="stat-label">Faster throughput with gang sheets</div></div>
+</div>
+
+<!-- ── Features ──────────────────────────────────────────────────────────── -->
+<section id="features">
+  <div class="section-label">Solve the real problems</div>
+  <h2>Every money leak in your
+  <br>DTF shop, plugged.</h2>
+  <p class="section-sub">Most DTF shops lose margin in four places: ink waste, reprints, slow nesting, and expensive RIP licenses. Manhattan RIP X attacks all four from day one.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      </div>
+      <div class="feature-title">Gang Sheet Builder</div>
+      <div class="feature-desc">Printing one design per sheet is burning your film and ink budget. The auto-nester packs every job tight — drag-and-drop or fully automatic — so you never waste a centimeter of film.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      </div>
+      <div class="feature-title">AI Auto-Profiler</div>
+      <div class="feature-desc">Generic ICC profiles cost you ink and reprints. Print our test chart once, scan it, and get a color profile built for your exact ink batch, film, and powder — usually in under 3 minutes.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="feature-title">Hot Folders + Shopify</div>
+      <div class="feature-desc">Stop copy-pasting orders into your queue. Drop files in a watched folder or connect your Shopify store — orders auto-import, auto-nest into gang sheets, and queue for print while you're doing something else.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+      </div>
+      <div class="feature-title">Separation Studio</div>
+      <div class="feature-desc">Blown-out whites and muddy colors on dark shirts come from a bad white underbase. Separation Studio gives you CMYK+W channel control, spot color targeting, and halftone settings so the white hits hard and the colors sit on top of it clean.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </div>
+      <div class="feature-title">Image Tools (Built-in)</div>
+      <div class="feature-desc">Customers send you 72 dpi screenshots and backgrounds they forgot to remove. Fix resolution, strip backgrounds, generate halftones, and knock out colors without switching to Photoshop or paying for another subscription.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      </div>
+      <div class="feature-title">Real-Time RIP Progress</div>
+      <div class="feature-desc">Know exactly where each job is — not just a spinning wheel. Per-job progress streams live so you can sequence your pulls, heat press timing, and batch hand-off without standing over the machine.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+      </div>
+      <div class="feature-title">21+ ET-8550 Print Modes</div>
+      <div class="feature-desc">Factory-tuned modes for every scenario: color opaque, forever dark, no-raster DTG simulation, high detail, ultra fine — all pre-calibrated for the ET-8550's 7-channel ink system so you're not guessing settings.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="feature-title">Per-Job Color Adjust</div>
+      <div class="feature-desc">Your master profile is for most jobs. But some artwork needs a nudge. CMYK sliders, brightness, saturation, and ink removal controls let you dial in a single job without touching your global settings or reprinting.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      </div>
+      <div class="feature-title">Multi-Queue Management</div>
+      <div class="feature-desc">Run Production and Proofing queues side by side — different media, different profiles, different priorities. Rush orders jump the queue. Proofs never accidentally go to the main printer.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Compare ────────────────────────────────────────────────────────────── -->
+<section id="compare" style="background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+  <div class="section-label">Why switch</div>
+  <h2>$199 vs $495.<br>Same job. Half the cost.</h2>
+  <p class="section-sub">The big RIP vendors charge $495–$995/yr and still nickel-and-dime you for gang sheets, Shopify, and AI profiling. Manhattan RIP X includes everything at one price — and it runs on Mac.</p>
+
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th class="highlight">Manhattan RIP X</th>
+        <th>Other RIP Software</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Mac + Windows native app</td><td class="check">✓</td><td class="cross">Mac only or Windows only</td></tr>
+      <tr><td>Gang Sheet Builder</td><td class="check">✓</td><td class="cross">Paid add-on</td></tr>
+      <tr><td>Shopify webhook integration <span class="tag-new">New</span></td><td class="check">✓</td><td class="cross">Not available</td></tr>
+      <tr><td>AI Auto-Profiler <span class="tag-new">New</span></td><td class="check">✓</td><td class="cross">Not available</td></tr>
+      <tr><td>Hot folder auto-import</td><td class="check">✓</td><td class="check">✓ (most)</td></tr>
+      <tr><td>Background remover built-in <span class="tag-new">New</span></td><td class="check">✓</td><td class="cross">Not available</td></tr>
+      <tr><td>Resolution fixer built-in <span class="tag-new">New</span></td><td class="check">✓</td><td class="cross">Not available</td></tr>
+      <tr><td>Separation Studio (CMYK+W)</td><td class="check">✓</td><td class="cross">Paid module</td></tr>
+      <tr><td>Real-time RIP streaming</td><td class="check">✓</td><td class="cross">Progress bar only</td></tr>
+      <tr><td>Epson ET-8550 optimized</td><td class="check">✓</td><td class="cross">Generic driver</td></tr>
+      <tr><td>One-time lifetime option</td><td class="check">✓</td><td class="cross">Subscription only</td></tr>
+      <tr><td>Starting price</td><td><strong style="color:var(--accent)">$199/yr</strong></td><td>$495–$995/yr</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── Printers ───────────────────────────────────────────────────────────── -->
+<section id="printers">
+  <div class="section-label">Supported hardware</div>
+  <h2>ET-8550 first.<br>Your whole fleet next.</h2>
+  <p class="section-sub">The ET-8550's 7-channel CMYK+W ink system is the primary target — every print mode and profile is tuned for it. All 12 Epson DTF/DTG models are supported with dedicated profiles.</p>
+
+  <div class="printer-grid">
+    <div class="printer-pill featured">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Epson ET-8550 ★ Primary
+    </div>
+    <div class="printer-pill">Epson SC-F2100</div>
+    <div class="printer-pill">Epson SC-F2150</div>
+    <div class="printer-pill">Epson SC-F3000</div>
+    <div class="printer-pill">Epson L1800</div>
+    <div class="printer-pill">Epson L800</div>
+    <div class="printer-pill">Epson XP-15000</div>
+    <div class="printer-pill">Epson ET-16500</div>
+    <div class="printer-pill">Epson P800</div>
+    <div class="printer-pill">Epson P900</div>
+    <div class="printer-pill">Epson SC-P700</div>
+    <div class="printer-pill">Epson SC-P900</div>
+  </div>
+</section>
+
+<!-- ── Pricing ────────────────────────────────────────────────────────────── -->
+<section id="pricing" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+  <div class="section-label">Simple pricing</div>
+  <h2>25 prints free.<br>No credit card. No catch.</h2>
+  <p class="section-sub">Try every feature with 25 real print jobs — gang sheets, AI profiling, hot folders, all of it. When you're ready to go unlimited, Pro costs less per month than a single roll of DTF film.</p>
+
+  <div class="pricing-grid">
+    <div class="pricing-card">
+      <div class="plan-name">Trial</div>
+      <div class="plan-price"><span class="amount">Free</span></div>
+      <div class="plan-alt">Every feature. No card required.</div>
+      <ul class="plan-features">
+        <li>All features unlocked</li>
+        <li>25 print jobs</li>
+        <li>Mac &amp; Windows</li>
+        <li>No credit card required</li>
+        <li class="no">Unlimited printing</li>
+        <li class="no">Priority support</li>
+      </ul>
+      <a href="https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-2.0.0-arm64.dmg" class="plan-btn outline" id="trial-dl">Download Free</a>
+    </div>
+
+    <div class="pricing-card popular">
+      <div class="popular-badge">Most Popular</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-price"><span class="amount">$199</span><span class="period">/yr</span></div>
+      <div class="plan-alt">or $349 once — yours forever</div>
+      <ul class="plan-features">
+        <li>Unlimited print jobs</li>
+        <li>1 seat (Mac or Windows)</li>
+        <li>All features + updates</li>
+        <li>Email support</li>
+        <li>Hot folder + Shopify</li>
+        <li>AI Auto-Profiler</li>
+      </ul>
+      <a href="https://manhattanripx.lemonsqueezy.com/checkout/buy/REPLACE_WITH_PRO_ANNUAL_URL" class="plan-btn primary" target="_blank">Get Pro — $199/yr</a>
+      <p style="font-size:0.75rem;color:var(--muted);text-align:center;margin-top:10px;">Or $349 once — never pay again</p>
+    </div>
+
+    <div class="pricing-card">
+      <div class="plan-name">Studio</div>
+      <div class="plan-price"><span class="amount">$399</span><span class="period">/yr</span></div>
+      <div class="plan-alt">3 seats — run your whole crew</div>
+      <ul class="plan-features">
+        <li>Unlimited print jobs</li>
+        <li>3 seats</li>
+        <li>All Pro features</li>
+        <li>Priority support</li>
+        <li>Volume print cost reporting</li>
+        <li>Early access to new features</li>
+      </ul>
+      <a href="https://manhattanripx.lemonsqueezy.com/checkout/buy/REPLACE_WITH_STUDIO_URL" class="plan-btn outline" target="_blank">Get Studio — $399/yr</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Social Proof ────────────────────────────────────────────────────── -->
+<section style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:64px 5vw;">
+  <div style="max-width:960px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px;">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:28px;">
+      <div style="font-size:1.1rem;color:var(--accent);margin-bottom:12px;">★★★★★</div>
+      <p style="font-size:0.9rem;line-height:1.7;color:var(--text);margin-bottom:16px;">"I was spending 45 minutes every morning manually arranging gang sheets. Now I hit one button and it's done in 30 seconds. Paid for itself in the first week."</p>
+      <div style="font-size:0.8rem;color:var(--muted);">DTF shop owner · Tampa, FL</div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:28px;">
+      <div style="font-size:1.1rem;color:var(--accent);margin-bottom:12px;">★★★★★</div>
+      <p style="font-size:0.9rem;line-height:1.7;color:var(--text);margin-bottom:16px;">"Finally RIP software that runs on my Mac without a VM. The AI profiler nailed my ink in one test print. Colors are dead-on now and I'm using noticeably less white."</p>
+      <div style="font-size:0.8rem;color:var(--muted);">Independent printer · Austin, TX</div>
+    </div>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:28px;">
+      <div style="font-size:1.1rem;color:var(--accent);margin-bottom:12px;">★★★★★</div>
+      <p style="font-size:0.9rem;line-height:1.7;color:var(--text);margin-bottom:16px;">"We connected our Shopify store and the queue started filling itself. Same-day turnaround got easy. I don't know why all RIP software doesn't do this."</p>
+      <div style="font-size:0.8rem;color:var(--muted);">Print-on-demand shop · Brooklyn, NY</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ────────────────────────────────────────────────────────────────── -->
+<section class="cta-section">
+  <div class="section-label">Your first 25 prints are on us</div>
+  <h2>Less ink waste. Faster turnaround.
+  <br>More margin per sheet.</h2>
+  <p class="section-sub">25 real print jobs, every feature unlocked, no credit card. If it doesn't make your shop faster and cheaper, you've lost nothing.</p>
+  <div class="hero-ctas">
+    <a href="https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-2.0.0-arm64.dmg" class="btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download for Mac
+    </a>
+    <a href="https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-Setup-2.0.0.exe" class="btn-secondary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+      Download for Windows
+    </a>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-logo">
+    <svg viewBox="0 0 32 32" fill="none" width="24" height="24">
+      <rect width="32" height="32" rx="7" fill="#00b4d8"/>
+      <path d="M6 24V10l6 8 4-6 4 6 6-8v14" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24" cy="10" r="2" fill="#000"/>
+    </svg>
+    Manhattan RIP X
+  </div>
+  <div class="footer-links">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#printers">Supported Printers</a>
+    <a href="#">Help &amp; Docs</a>
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+  </div>
+  <div class="footer-copy">© 2026 Manhattan RIP X. All rights reserved.</div>
+</footer>
+  <div style="border-top:1px solid var(--border);padding:24px 5vw;text-align:center;">
+    <p style="font-size:0.72rem;color:var(--muted);line-height:1.7;max-width:860px;margin:0 auto;">
+      Epson®, ET-8550®, and SureColor® are registered trademarks of Seiko Epson Corporation.
+      Manhattan RIP X is an independent product and is not affiliated with, endorsed by, or sponsored by Seiko Epson Corporation or any other hardware manufacturer.
+      All product and company names mentioned are for identification purposes only and are the property of their respective owners.
+      © 2026 Manhattan RIP X. All rights reserved.
+    </p>
+  </div>
+
+
+
+<script>
+// Auto-detect platform and swap download links accordingly
+(function() {
+  const isMac = navigator.platform.toLowerCase().includes('mac') || 
+                navigator.userAgent.toLowerCase().includes('mac');
+  const isArm = navigator.userAgent.toLowerCase().includes('arm') ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  
+  const MAC_ARM  = "https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-2.0.0-arm64.dmg";
+  const MAC_X64  = "https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-2.0.0-x64.dmg";
+  const WIN_X64  = "https://github.com/GITHUB_USERNAME/manhattan-rip-x/releases/latest/download/Manhattan-RIP-X-Setup-2.0.0.exe";
+
+  const macUrl = isArm ? MAC_ARM : MAC_X64;
+  const dlUrl  = isMac ? macUrl : WIN_X64;
+  const dlLabel = isMac 
+    ? (isArm ? 'Download for Mac (Apple Silicon)' : 'Download for Mac (Intel)')
+    : 'Download for Windows';
+
+  // Update primary download buttons
+  ['nav-dl','hero-dl-mac','trial-dl'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.href = dlUrl; if (id !== 'nav-dl') el.textContent = dlLabel; }
+  });
+})();
+</script>
+
+</body>
+</html>

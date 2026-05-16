@@ -1,0 +1,146 @@
+{
+  "name": "manhattan-rip-x",
+  "productName": "Manhattan RIP X",
+  "version": "2.0.0",
+  "description": "Manhattan RIP X — Professional DTF RIP Software for macOS",
+  "main": "main.js",
+  "author": {
+    "name": "Manhattan RIP X",
+    "email": "support@manhattanripx.com"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:dmg": "electron-builder --mac dmg",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "com.manhattanripx.app",
+    "productName": "Manhattan RIP X",
+    "copyright": "© 2026 Manhattan RIP X",
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**",
+      "**/node_modules/bindings/**",
+      "resources/server/**"
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "resources/**/*",
+      "!resources/icons/ManhattanRIPX.iconset",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../dtf-rip/dist/public",
+        "to": "public",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../dtf-rip/dist/index.cjs",
+        "to": "server/index.cjs"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-and-design",
+      "icon": "resources/icons/ManhattanRIPX.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": false,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "minimumSystemVersion": "12.0"
+    },
+    "dmg": {
+      "title": "Manhattan RIP X ${version}",
+      "icon": "resources/icons/ManhattanRIPX.icns",
+      "background": "resources/dmg-background.png",
+      "iconSize": 128,
+      "iconTextSize": 12,
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 140,
+          "y": 190,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 190,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "internetEnabled": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "resources/icons",
+      "category": "Graphics"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icons/icon.ico",
+      "signAndEditExecutable": false,
+      "signDlls": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icons/icon.ico",
+      "uninstallerIcon": "resources/icons/icon.ico",
+      "installerHeaderIcon": "resources/icons/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Manhattan RIP X",
+      "include": null
+    },
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "dmg-license": "^1.0.11",
+    "electron": "^34.5.8",
+    "electron-builder": "^25.1.8"
+  }
+}
