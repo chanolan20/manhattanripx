@@ -320,7 +320,7 @@ function JobRow({
   const labelCls = STATUS_LABEL_CLS[job.status] || "";
 
   // Print mode abbreviation (MRX naming convention)
-  const printModeShort = job.printMode || "1440×720 Color Opaque";
+  const printModeShort = (job as any).printMode || "1440×720 Color Opaque";
 
   return (
     <div

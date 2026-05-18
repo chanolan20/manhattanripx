@@ -13,6 +13,7 @@ export const devices = sqliteTable("devices", {
   ipAddress: text("ip_address"),
   paperWidth: real("paper_width").notNull().default(13.0),
   inkChannels: text("ink_channels").notNull().default('["C","M","Y","K","W"]'),
+  port: text("port").notNull().default("USB001"),
 });
 export const insertDeviceSchema = createInsertSchema(devices).omit({ id: true });
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
@@ -91,6 +92,9 @@ export const jobs = sqliteTable("jobs", {
   // Cut contour
   hasCutContour: integer("has_cut_contour", { mode: "boolean" }).notNull().default(false),
   cutContourColor: text("cut_contour_color"),
+  printMode: text("print_mode"),
+  xOffset: real("x_offset").notNull().default(0),
+  yOffset: real("y_offset").notNull().default(0),
 });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true });
 export type InsertJob = z.infer<typeof insertJobSchema>;

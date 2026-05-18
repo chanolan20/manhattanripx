@@ -2,7 +2,9 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { devices, queues, jobs, printModes, iccProfiles, settings, license } from "@shared/schema";
 
-const sqlite = new Database("data.db");
+// Use DB_PATH injected by Electron main.js (userData dir) — fallback for dev
+const dbPath = process.env.DB_PATH || "data.db";
+const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 const db = drizzle(sqlite);
 

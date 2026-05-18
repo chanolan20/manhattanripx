@@ -26,7 +26,10 @@ interface Props {
   onSelectView?: (v: ActiveView) => void;
 }
 
-const MENU_ITEMS = [
+type MenuItemEntry = string | { label: string; shortcut?: string; url?: string };
+type MenuGroup = { label: string; items: MenuItemEntry[] };
+
+const MENU_ITEMS: MenuGroup[] = [
   {
     label: "File",
     items: [
@@ -164,11 +167,11 @@ function TBtn({
 }
 
 // SVG icon helper
-function Icon({ path, ...props }: { path: React.ReactNode } & React.SVGProps<SVGSVGElement>) {
+function Icon({ children, ...props }: React.SVGProps<SVGSVGElement>) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      {path}
+      {children}
     </svg>
   );
 }
@@ -256,48 +259,48 @@ export default function TopBar({ device, activeQueue, onQueueStart, onQueueStop,
         {/* File ops */}
         <label title="Open Job">
           <input type="file" accept=".png,.jpg,.jpeg,.tif,.tiff,.pdf,.psd,.svg" className="hidden" />
-          <TBtn label="Open" icon={<Icon path={<><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></>} />} />
+          <TBtn label="Open" icon={<Icon><><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></></Icon>} />
         </label>
-        <TBtn label="Remove" variant="destructive" icon={<Icon path={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>} />} />
+        <TBtn label="Remove" variant="destructive" icon={<Icon><><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></></Icon>} />
 
         <VSep />
 
         {/* Job control */}
-        <TBtn label="Hold" icon={<Icon path={<><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></>} />} />
-        <TBtn label="Release" icon={<Icon path={<polygon points="5 3 19 12 5 21 5 3"/>} />} />
+        <TBtn label="Hold" icon={<Icon><><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></></Icon>} />
+        <TBtn label="Release" icon={<Icon><polygon points="5 3 19 12 5 21 5 3"/></Icon>} />
 
         <VSep />
 
         {/* Print ops */}
-        <TBtn label="Spool" icon={<Icon path={<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>} />} />
-        <TBtn label="Print" icon={<Icon path={<><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></>} />} />
-        <TBtn label="Rip Only" icon={<Icon path={<><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></>} />} />
+        <TBtn label="Spool" icon={<Icon><><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></></Icon>} />
+        <TBtn label="Print" icon={<Icon><><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></></Icon>} />
+        <TBtn label="Rip Only" icon={<Icon><><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></></Icon>} />
 
         <VSep />
 
         {/* Layout */}
-        <TBtn label="Center" icon={<Icon path={<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></>} />} />
-        <TBtn label="Fit Page" icon={<Icon path={<><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></>} />} />
-        <TBtn label="Fit Width" icon={<Icon path={<><polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><line x1="3" y1="3" x2="10" y2="10"/><line x1="21" y1="3" x2="14" y2="10"/></>} />} />
+        <TBtn label="Center" icon={<Icon><><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></></Icon>} />
+        <TBtn label="Fit Page" icon={<Icon><><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></></Icon>} />
+        <TBtn label="Fit Width" icon={<Icon><><polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><line x1="3" y1="3" x2="10" y2="10"/><line x1="21" y1="3" x2="14" y2="10"/></></Icon>} />
 
         <VSep />
 
         {/* Color */}
         <TBtn label="Color Adj" onClick={onOpenColorMgmt}
-          icon={<Icon path={<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></>} />}
+          icon={<Icon><><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></></Icon>}
         />
         <TBtn label="Print Modes" onClick={onOpenPrintModes}
-          icon={<Icon path={<><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 17.66l-1.41 1.41M22 12h-2M4 12H2M19.07 19.07l-1.41-1.41M5.34 6.34L3.93 4.93M12 22v-2M12 4V2"/></>} />}
+          icon={<Icon><><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 17.66l-1.41 1.41M22 12h-2M4 12H2M19.07 19.07l-1.41-1.41M5.34 6.34L3.93 4.93M12 22v-2M12 4V2"/></></Icon>}
         />
         <TBtn label="Queues" onClick={onOpenManageQueues}
-          icon={<Icon path={<><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>} />}
+          icon={<Icon><><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></></Icon>}
         />
 
         <VSep />
 
         {/* Abort */}
         <TBtn label="Abort" variant="destructive"
-          icon={<Icon path={<><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>} />}
+          icon={<Icon><><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></></Icon>}
         />
 
         <VSep />

@@ -91,7 +91,7 @@ export function stopHotFolder(id: string) {
 }
 
 export function stopAllHotFolders() {
-  for (const [id] of watchers) stopHotFolder(id);
+  Array.from(watchers.keys()).forEach(id => stopHotFolder(id));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,10 +109,9 @@ async function importFileToQueue(filePath: string, config: HotFolderConfig) {
   const job = await storage.createJob({
     queueId: config.queueId,
     name: name.replace(/\.[^.]+$/, ""),
+    fileName: path.basename(filePath),
     filePath,
     status: config.autoRip ? "processing" : "pending",
-    printModeId: config.printModeId ?? null,
-    colorAdjustments: {},
     copies: 1,
     scalePercent: 100,
     xOffset: 0,
@@ -172,10 +171,9 @@ export async function handleShopifyOrder(orderPayload: any, config: ShopifyWebho
       const job = await storage.createJob({
         queueId: config.queueId,
         name: `${orderId}_${item.name || "item"}_${copies}x`.replace(/\s+/g, "_"),
+        fileName: path.basename(localPath),
         filePath: localPath,
         status: "pending",
-        printModeId: null,
-        colorAdjustments: {},
         copies,
         scalePercent: 100,
         xOffset: 0,
@@ -250,11 +248,14 @@ async function downloadImageToTemp(imageUrl: string, orderId: any, itemId: any):
 
 async function triggerAutoNest(queueId: number, sheetWidth: number, sheetHeight: number) {
   try {
-    const jobs = await storage.getJobsByQueue(queueId);
+    const jobs = await storage.getJobs(queueId);
     const pendingJobs = jobs.filter(j => j.status === "pending");
     if (pendingJobs.length < 2) return; // nothing to nest yet
 
-    const result = await autoNestJobs(pendingJobs, {
+    const nestInputs = pendingJobs
+      .filter(j => j.filePath != null)
+      .map(j => ({ id: j.id, filePath: j.filePath!, copies: j.copies, scalePercent: j.scalePercent }));
+    const result = await autoNestJobs(nestInputs, {
       sheetWidth,
       sheetHeight,
       spacing: 0.1,
@@ -264,7 +265,7 @@ async function triggerAutoNest(queueId: number, sheetWidth: number, sheetHeight:
     // Update job positions from nest result
     for (const placement of result.placements) {
       await storage.updateJob(placement.jobId, {
-        xOffset: placement.x,
+        xOffset: placement.x ?? 0,
         yOffset: placement.y,
         scalePercent: placement.scalePercent,
       });

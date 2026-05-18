@@ -567,13 +567,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = getHotFolderConfigs();
       const cfg: HotFolderConfig = {
         id: req.body.id || `hf-${Date.now()}`,
-        name: req.body.name || "Hot Folder",
+        label: req.body.name || req.body.label || "Hot Folder",
         watchPath: req.body.watchPath || "",
         queueId: Number(req.body.queueId) || 1,
         enabled: req.body.enabled !== false,
         autoNest: req.body.autoNest === true,
-        autoPrint: req.body.autoPrint === true,
-        fileTypes: req.body.fileTypes || ["png", "jpg", "pdf"],
+        nestWidth: Number(req.body.nestWidth) || 22,
+        nestHeight: Number(req.body.nestHeight) || 60,
+        autoRip: req.body.autoRip === true,
       };
       const updated = existing.filter(c => c.id !== cfg.id).concat(cfg);
       setHotFolderConfigs(updated);
@@ -607,7 +608,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!cfg) return res.status(400).json({ error: "Shopify webhook not configured" });
       const hmacHeader = req.headers["x-shopify-hmac-sha256"] as string;
       const rawBody = (req as any).rawBody as Buffer;
-      if (rawBody && hmacHeader && !verifyShopifyHmac(rawBody, hmacHeader, cfg.sharedSecret)) {
+      if (rawBody && hmacHeader && !verifyShopifyHmac(rawBody, hmacHeader ?? "", cfg.secret)) {
         return res.status(401).json({ error: "HMAC verification failed" });
       }
       await handleShopifyOrder(req.body, cfg);
@@ -621,9 +622,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/nest", async (req, res) => {
     try {
       const { queueId, sheetWidthIn, sheetHeightIn, marginIn, spacingIn } = req.body;
-      const jobs = storage.getJobsByQueueId(Number(queueId)).filter(j => j.status === "pending");
+      const jobs = storage.getJobs(Number(queueId)).filter(j => j.status === "pending");
       if (!jobs.length) return res.json({ placements: [], message: "No pending jobs to nest" });
-      const nestInputs = jobs.map(j => ({ jobId: j.id, filePath: j.filePath, copies: j.copies || 1, scalePercent: j.scalePercent || 100 }));
+      const nestInputs = jobs.filter(j => j.filePath != null).map(j => ({ id: j.id, filePath: j.filePath!, copies: j.copies || 1, scalePercent: j.scalePercent || 100 }));
       const opts = {
         sheetWidth: Number(sheetWidthIn) || 22,
         sheetHeight: Number(sheetHeightIn) || 60,
@@ -669,7 +670,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { jobId, options } = req.body;
       const job = storage.getJob(Number(jobId));
       if (!job) return res.status(404).json({ error: "Job not found" });
-      const result = await separateArt(job.filePath, options);
+      const result = await separateArt(job.filePath ?? "", options);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Separation failed" });
