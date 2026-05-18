@@ -98,7 +98,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: web-dist
+<<<<<<< HEAD
           path: dtf-rip/dist/
+=======
+          path: dist/
+>>>>>>> ff27969 (fix: correct Electron + workflow paths for repo structure)
 
       # ── Import signing certificate into macOS keychain ─────────────────────
       - name: Import Apple code-signing certificate
@@ -135,11 +139,19 @@ jobs:
 
       # ── Install Electron project dependencies ──────────────────────────────
       - name: Install Electron project dependencies
+<<<<<<< HEAD
         working-directory: manhattan-rip-x-electron
         run: npm install
 
       - name: Install electron-updater and electron-builder
         working-directory: manhattan-rip-x-electron
+=======
+        working-directory: electron
+        run: npm install
+
+      - name: Install electron-updater and electron-builder
+        working-directory: electron
+>>>>>>> ff27969 (fix: correct Electron + workflow paths for repo structure)
         run: npm install --save-dev electron-builder electron-updater
 
       # ── Determine version from tag ─────────────────────────────────────────
@@ -154,7 +166,11 @@ jobs:
 
       # ── Patch version into package.json ───────────────────────────────────
       - name: Update package.json version
+<<<<<<< HEAD
         working-directory: manhattan-rip-x-electron
+=======
+        working-directory: electron
+>>>>>>> ff27969 (fix: correct Electron + workflow paths for repo structure)
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           npm pkg set version="$VERSION"
@@ -162,7 +178,11 @@ jobs:
 
       # ── Build DMG via electron-builder ────────────────────────────────────
       - name: Build macOS DMG (arm64 + x64 universal)
+<<<<<<< HEAD
         working-directory: manhattan-rip-x-electron
+=======
+        working-directory: electron
+>>>>>>> ff27969 (fix: correct Electron + workflow paths for repo structure)
         run: |
           npx electron-builder \
             --mac dmg \
@@ -180,7 +200,11 @@ jobs:
       # ── Fallback: build unsigned DMG if cert not available ─────────────────
       - name: Build unsigned DMG (fallback — no cert)
         if: env.APPLE_CERTIFICATE == ''
+<<<<<<< HEAD
         working-directory: manhattan-rip-x-electron
+=======
+        working-directory: electron
+>>>>>>> ff27969 (fix: correct Electron + workflow paths for repo structure)
         run: |
           echo "⚠️ No signing cert — building unsigned DMG"
           npx electron-builder \
@@ -192,7 +216,11 @@ jobs:
 
       # ── Verify DMG was produced ────────────────────────────────────────────
       - name: Verify DMG output
+<<<<<<< HEAD
         working-directory: manhattan-rip-x-electron
+=======
+        working-directory: electron
+>>>>>>> ff27969 (fix: correct Electron + workflow paths for repo structure)
         run: |
           DMG=$(find dist -name "*.dmg" | head -1)
           if [ -z "$DMG" ]; then
@@ -210,7 +238,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ManhattanRIPX-${{ steps.version.outputs.version }}-macOS
+<<<<<<< HEAD
           path: manhattan-rip-x-electron/dist/*.dmg
+=======
+          path: electron/dist/*.dmg
+>>>>>>> ff27969 (fix: correct Electron + workflow paths for repo structure)
           retention-days: 90
 
       # ── Clean up keychain ──────────────────────────────────────────────────

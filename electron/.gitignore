@@ -1,0 +1,10 @@
+node_modules/
+release/
+dist/
+*.db
+.DS_Store
+Thumbs.db
+# Sensitive signing certs — never commit
+*.p12
+*.pem
+*.cer
