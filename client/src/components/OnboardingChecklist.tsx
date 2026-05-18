@@ -82,7 +82,7 @@ export default function OnboardingChecklist({ onClose }: Props) {
     setChecked(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
-      localStorage.setItem(PROGRESS_KEY, JSON.stringify([...next]));
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify(Array.from(next)));
       return next;
     });
   };
