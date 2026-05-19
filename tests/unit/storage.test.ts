@@ -6,16 +6,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import path from "path";
-import os from "os";
-import fs from "fs";
-
-// We test StorageStorage by constructing it with a temp DB
-// Patch the module to use temp path before importing
-
-const TEMP_DB = path.join(os.tmpdir(), `mrx_test_${Date.now()}.db`);
 
 // DB_PATH is set in tests/setup.ts (vitest setupFiles) before any imports
 import { DatabaseStorage } from "../../server/storage";

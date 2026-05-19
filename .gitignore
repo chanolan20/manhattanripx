@@ -9,6 +9,9 @@ dist/
 # database (user-specific)
 data.db
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 
 # env files
 .env

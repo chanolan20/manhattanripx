@@ -84,19 +84,19 @@ jobs:
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Install Electron deps
-        working-directory: electron
+        working-directory: manhattan-rip-x-electron
         run: npm install
       - name: Set version
-        working-directory: electron
+        working-directory: manhattan-rip-x-electron
         run: npm pkg set version="${{ steps.version.outputs.version }}"
       - name: Build macOS DMG
-        working-directory: electron
+        working-directory: manhattan-rip-x-electron
         run: npx electron-builder --mac dmg --publish never
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
           name: ManhattanRIPX-${{ steps.version.outputs.version }}-macOS
-          path: electron/release/*.dmg
+          path: manhattan-rip-x-electron/release/*.dmg
           retention-days: 90
 
   # ── 4. Windows EXE ──────────────────────────────────────────────────────────
@@ -123,19 +123,19 @@ jobs:
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
       - name: Install Electron deps
-        working-directory: electron
+        working-directory: manhattan-rip-x-electron
         run: npm install
       - name: Set version
-        working-directory: electron
+        working-directory: manhattan-rip-x-electron
         run: npm pkg set version="${{ steps.version.outputs.version }}"
       - name: Build Windows EXE
-        working-directory: electron
+        working-directory: manhattan-rip-x-electron
         run: npx electron-builder --win nsis --x64 --publish never
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: ManhattanRIPX-${{ steps.version.outputs.version }}-Windows
-          path: electron/release/*.exe
+          path: manhattan-rip-x-electron/release/*.exe
           retention-days: 90
 
   # ── 5. GitHub Release ───────────────────────────────────────────────────────

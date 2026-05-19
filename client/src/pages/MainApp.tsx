@@ -3,7 +3,7 @@
  * Full DFv12-equivalent layout with all features wired.
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Queue, Job, Device } from "@shared/schema";
