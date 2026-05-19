@@ -17,8 +17,7 @@ import fs from "fs";
 
 const TEMP_DB = path.join(os.tmpdir(), `mrx_test_${Date.now()}.db`);
 
-// Monkey-patch the Database path before importing storage
-// (vitest runs in same process, so we use a fresh module)
+// DB_PATH is set in tests/setup.ts (vitest setupFiles) before any imports
 import { DatabaseStorage } from "../../server/storage";
 
 let storage: DatabaseStorage;

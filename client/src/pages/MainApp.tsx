@@ -1,30 +1,12 @@
 /**
  * Manhattan RIP X — MainApp
- *
- * MRX main application layout — queue list + preview + JobBar:
- *
- *  ┌──────────────────────────────────────────────────────┐
- *  │  Title Bar (logo · device name · status)             │
- *  │  Menu Bar (File Queue Jobs Devices Tools View Help)  │
- *  │  Icon Toolbar (Open Remove Hold Release Spool Print…)│
- *  ├──────────────────────────────────────────────────────┤
- *  │  [Queue 1 ▶] [Queue 2] [+]   ···   [Tools nav tabs] │
- *  ├────────────────────────────┬─────────────────────────┤
- *  │                            │  Preview Canvas          │
- *  │  Job List (table)          │  (rulers, gray bg,       │
- *  │  Name/Status/PrintMode/    │   white sheet, image)   │
- *  │  Copies/Cost/Type/Dims/Port│                          │
- *  ├─────────────────┬──────────┤─────────────────────────┤
- *  │  Reserved ──────│─ Browse  │  Smart Bar (thumbnail,   │
- *  │  (done jobs)    │          │  job name, W×H, scale,   │
- *  │                 │          │  pos, copies, actions)   │
- *  └─────────────────┴──────────┴─────────────────────────┘
+ * Full DFv12-equivalent layout with all features wired.
  */
 
 import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Queue, Job, Device, PrintMode } from "@shared/schema";
+import type { Queue, Job, Device } from "@shared/schema";
 import QueueJobList from "@/components/QueueJobList";
 import PreviewCanvas from "@/components/PreviewCanvas";
 import SmartBar from "@/components/SmartBar";
@@ -44,11 +26,7 @@ import NestingPreview from "@/components/NestingPreview";
 import ManageQueuesDialog from "@/components/ManageQueuesDialog";
 import OnboardingChecklist, { useShowOnboarding } from "@/components/OnboardingChecklist";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, X, ChevronDown, Settings, Shield, ShieldCheck, Zap, Crown } from "lucide-react";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
-import { useMutation as useMut } from "@tanstack/react-query";
+import { Plus, Settings, Shield, ShieldCheck } from "lucide-react";
 
 export type ActiveView =
   | "queue"
@@ -65,62 +43,113 @@ export type ActiveView =
   | "settings"
   | "license";
 
-// Mapping from tool views to display labels (shown in secondary tab strip)
 const TOOL_VIEWS: { id: ActiveView; label: string }[] = [
-  { id: "gang-sheet", label: "Gang Sheet Builder" },
-  { id: "nesting", label: "Nesting Preview" },
-  { id: "hot-folder", label: "Hot Folder" },
+  { id: "gang-sheet",        label: "Gang Sheet Builder" },
+  { id: "nesting",           label: "Nesting Preview" },
+  { id: "hot-folder",        label: "Hot Folder" },
   { id: "separation-studio", label: "Separation Studio" },
-  { id: "auto-profiler", label: "AI Profiler" },
-  { id: "print-cut", label: "Print & Cut" },
-  { id: "image-tools", label: "Image Tools" },
-  { id: "color", label: "Color Mgmt" },
-  { id: "print-modes", label: "Print Modes" },
-  { id: "devices", label: "Devices" },
+  { id: "auto-profiler",     label: "AI Profiler" },
+  { id: "print-cut",         label: "Print & Cut" },
+  { id: "image-tools",       label: "Image Tools" },
+  { id: "color",             label: "Color Mgmt" },
+  { id: "print-modes",       label: "Print Modes" },
+  { id: "devices",           label: "Devices" },
 ];
 
+// ── Upload helper — works in both Electron (IPC) and browser (XHR) ─────────
+async function uploadFilesToQueue(
+  files: File[] | string[],
+  queueId: number,
+  onSuccess: (name: string) => void,
+  onError: (name: string, err: string) => void,
+) {
+  const eAPI = (window as any).electronAPI;
+
+  for (const file of files) {
+    if (typeof file === "string") {
+      // Local filesystem path from Electron dialog
+      if (eAPI?.uploadFile) {
+        const result = await eAPI.uploadFile(file, queueId);
+        if (result?.error) onError(file.split(/[/\\]/).pop() || file, result.error);
+        else onSuccess(file.split(/[/\\]/).pop() || file);
+      }
+    } else {
+      // Browser File object (drag-drop or file input in non-Electron)
+      await new Promise<void>((resolve) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("queueId", String(queueId));
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/upload");
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) onSuccess(file.name);
+          else onError(file.name, `HTTP ${xhr.status}`);
+          resolve();
+        };
+        xhr.onerror = () => { onError(file.name, "Network error"); resolve(); };
+        xhr.send(formData);
+      });
+    }
+  }
+}
+
 export default function MainApp() {
-  const [activeQueueId, setActiveQueueId] = useState<number>(1);
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
-  const [activeView, setActiveView] = useState<ActiveView>("queue");
+  const [activeQueueId, setActiveQueueId]       = useState<number>(1);
+  const [selectedJobId, setSelectedJobId]       = useState<number | null>(null);
+  const [activeView, setActiveView]             = useState<ActiveView>("queue");
   const [showPrintModeManager, setShowPrintModeManager] = useState(false);
-  const [showColorManagement, setShowColorManagement] = useState(false);
-  const [showManageQueues, setShowManageQueues] = useState(false);
+  const [showColorManagement, setShowColorManagement]   = useState(false);
+  const [showManageQueues, setShowManageQueues]         = useState(false);
+  const [showColorAdjForJob, setShowColorAdjForJob]     = useState(false);
   const { toast } = useToast();
   const { show: showOnboarding, dismiss: dismissOnboarding } = useShowOnboarding();
-  const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
 
+  // ── Data queries ───────────────────────────────────────────────────────────
   const { data: queues = [] } = useQuery<Queue[]>({ queryKey: ["/api/queues"] });
   const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
   const { data: jobs = [] } = useQuery<Job[]>({
     queryKey: ["/api/queues", activeQueueId, "jobs"],
     queryFn: () => apiRequest("GET", `/api/queues/${activeQueueId}/jobs`).then(r => r.json()),
     enabled: !!activeQueueId,
-    refetchInterval: 2000,
+    refetchInterval: 1500,
   });
-
   const { data: license } = useQuery<any>({ queryKey: ["/api/license"], refetchInterval: 60000 });
-  const isLicensed = license?.status === "active";
-  const isTrial = !isLicensed;
+
+  const isLicensed    = license?.status === "active";
+  const isTrial       = !isLicensed;
   const trialRemaining = (license?.trialJobsLimit || 25) - (license?.trialJobsUsed || 0);
 
-  const selectedJob = jobs.find(j => j.id === selectedJobId) || null;
-  const activeQueue = queues.find(q => q.id === activeQueueId) || null;
-  const device = devices[0] || null;
+  const selectedJob  = jobs.find(j => j.id === selectedJobId) ?? null;
+  const activeQueue  = queues.find(q => q.id === activeQueueId) ?? null;
+  const device       = devices[0] ?? null;
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const invalidateJobs = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/queues", activeQueueId, "jobs"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/queues"] });
+  };
 
   const updateJobMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) =>
       apiRequest("PATCH", `/api/jobs/${id}`, data).then(r => r.json()),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/queues", activeQueueId, "jobs"] }),
+    onSuccess: invalidateJobs,
   });
 
   const deleteJobMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/jobs/${id}`).then(r => r.json()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/queues", activeQueueId, "jobs"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/queues"] });
-      setSelectedJobId(null);
-    },
+    onSuccess: () => { invalidateJobs(); setSelectedJobId(null); },
+  });
+
+  const ripJobMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/jobs/${id}/rip`).then(r => r.json()),
+    onSuccess: () => { toast({ title: "RIP started" }); invalidateJobs(); },
+    onError: (e: any) => toast({ title: e.message || "RIP failed", variant: "destructive" }),
+  });
+
+  const printJobMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/jobs/${id}/print`).then(r => r.json()),
+    onSuccess: () => { toast({ title: "Print job sent" }); invalidateJobs(); },
+    onError: (e: any) => toast({ title: e.message || "Print failed", variant: "destructive" }),
   });
 
   const queueActionMutation = useMutation({
@@ -149,43 +178,81 @@ export default function MainApp() {
       .then(() => queryClient.invalidateQueries({ queryKey: ["/api/queues"] }));
   }, []);
 
-  const handleDrop = useCallback((files: File[]) => {
-    files.forEach((file) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("queueId", String(activeQueueId));
-      const xhr = new XMLHttpRequest();
-      uploadXhrRef.current = xhr;
-      const baseUrl = (window as any).__PORT_5000__ || "";
-      xhr.open("POST", `${baseUrl}/api/upload`);
-      xhr.onload = () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/queues", activeQueueId, "jobs"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/queues"] });
-        if (xhr.status >= 200 && xhr.status < 300) {
-          toast({ title: `"${file.name}" added to queue` });
-        } else {
-          toast({ title: `Upload failed: ${file.name}`, variant: "destructive" });
-        }
-      };
-      xhr.onerror = () => {
-        const colors = ["#1a1a2e","#e63946","#457b9d","#2d6a4f","#9b2226","#6a0572","#f77f00","#023e8a"];
-        apiRequest("POST", `/api/queues/${activeQueueId}/jobs`, {
-          name: file.name, fileName: file.name,
-          fileType: file.name.split(".").pop()?.toUpperCase() || "PNG",
-          status: "pending", width: 10, height: 10, copies: 1, rotation: 0,
-          scalePercent: 100, posX: 0.5, posY: 0.5,
-          inkCost: parseFloat((Math.random() * 0.5 + 0.1).toFixed(2)),
-          ripProgress: 0, previewData: colors[Math.floor(Math.random() * colors.length)],
-          colorAdjustBrightness: 0, colorAdjustContrast: 0, colorAdjustSaturation: 0,
-        }).then(r => r.json()).then(() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/queues", activeQueueId, "jobs"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/queues"] });
-          toast({ title: `"${file.name}" added to queue` });
-        });
-      };
-      xhr.send(formData);
-    });
+  // ── Toolbar action callbacks ───────────────────────────────────────────────
+  const handleOpenJob = useCallback(async () => {
+    const eAPI = (window as any).electronAPI;
+    if (eAPI?.openFileDialog) {
+      const result = await eAPI.openFileDialog();
+      if (!result.canceled && result.filePaths.length > 0) {
+        await uploadFilesToQueue(
+          result.filePaths,
+          activeQueueId,
+          (name) => {
+            invalidateJobs();
+            toast({ title: `"${name}" added to queue` });
+          },
+          (name, err) => toast({ title: `Upload failed: ${name} — ${err}`, variant: "destructive" }),
+        );
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeQueueId]);
+
+  const handleDrop = useCallback(async (files: File[]) => {
+    await uploadFilesToQueue(
+      files,
+      activeQueueId,
+      (name) => { invalidateJobs(); toast({ title: `"${name}" added to queue` }); },
+      (name, err) => toast({ title: `Upload failed: ${name} — ${err}`, variant: "destructive" }),
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeQueueId]);
+
+  const handleDeleteJob = useCallback(() => {
+    if (selectedJobId) deleteJobMutation.mutate(selectedJobId);
+  }, [selectedJobId, deleteJobMutation]);
+
+  const handleHoldJob = useCallback(() => {
+    if (selectedJobId) updateJobMutation.mutate({ id: selectedJobId, data: { status: "hold" } });
+  }, [selectedJobId, updateJobMutation]);
+
+  const handleReleaseJob = useCallback(() => {
+    if (selectedJobId) updateJobMutation.mutate({ id: selectedJobId, data: { status: "pending" } });
+  }, [selectedJobId, updateJobMutation]);
+
+  const handleRipJob = useCallback(() => {
+    if (selectedJobId) ripJobMutation.mutate(selectedJobId);
+  }, [selectedJobId, ripJobMutation]);
+
+  const handlePrintJob = useCallback(() => {
+    if (selectedJobId) printJobMutation.mutate(selectedJobId);
+  }, [selectedJobId, printJobMutation]);
+
+  const handleAbortJob = useCallback(() => {
+    if (selectedJobId) {
+      apiRequest("DELETE", `/api/jobs/${selectedJobId}/rip`).catch(() => {});
+      updateJobMutation.mutate({ id: selectedJobId, data: { status: "pending", ripProgress: 0 } });
+    }
+  }, [selectedJobId, updateJobMutation]);
+
+  const handleCenterJob = useCallback(() => {
+    if (selectedJobId && activeQueue) {
+      updateJobMutation.mutate({
+        id: selectedJobId,
+        data: {
+          posX: (activeQueue.sheetWidth || 22) / 2,
+          posY: (activeQueue.sheetHeight || 60) / 2,
+        },
+      });
+    }
+  }, [selectedJobId, activeQueue, updateJobMutation]);
+
+  const handleRemoveDone = useCallback(() => {
+    jobs.filter(j => j.status === "done" || j.status === "error").forEach(j => {
+      deleteJobMutation.mutate(j.id);
+    });
+    toast({ title: "Removed completed jobs" });
+  }, [jobs, deleteJobMutation, toast]);
 
   const selectQueue = (id: number) => {
     setActiveQueueId(id);
@@ -197,21 +264,32 @@ export default function MainApp() {
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden" data-testid="main-app">
-      {/* ── Top Bar: title + menus + toolbar ──────────────────────────────── */}
+
+      {/* ── Top Bar ───────────────────────────────────────────────────────────── */}
       <TopBar
         device={device}
         activeQueue={activeQueue}
+        selectedJob={selectedJob}
         onQueueStart={() => activeQueue && queueActionMutation.mutate({ id: activeQueue.id, action: "start" })}
         onQueueStop={() => activeQueue && queueActionMutation.mutate({ id: activeQueue.id, action: "stop" })}
         onOpenPrintModes={() => setShowPrintModeManager(true)}
         onOpenColorMgmt={() => setShowColorManagement(true)}
         onOpenManageQueues={() => setShowManageQueues(true)}
         onSelectView={setActiveView}
+        onOpenJob={handleOpenJob}
+        onDeleteJob={handleDeleteJob}
+        onHoldJob={handleHoldJob}
+        onReleaseJob={handleReleaseJob}
+        onRipJob={handleRipJob}
+        onPrintJob={handlePrintJob}
+        onColorAdjJob={() => selectedJob && setShowColorAdjForJob(true)}
+        onAbortJob={handleAbortJob}
+        onCenterJob={handleCenterJob}
+        onRemoveDone={handleRemoveDone}
       />
 
-      {/* ── Queue + Tool Tabs ─────────────────────────────────────────────── */}
-      <div className="flex items-end bg-[hsl(220_13%_9%)] border-b border-border px-1 pt-1 gap-0 overflow-x-auto" style={{ minHeight: 30 }}>
-        {/* Queue tabs (always shown, like browser tabs) */}
+      {/* ── Queue + Tool Tabs ─────────────────────────────────────────────────── */}
+      <div className="flex items-end bg-[hsl(220_13%_9%)] border-b border-border px-1 pt-1 gap-0 overflow-x-auto shrink-0" style={{ minHeight: 30 }}>
         {queues.map((q) => {
           const active = activeQueueId === q.id && isQueueView;
           return (
@@ -234,20 +312,16 @@ export default function MainApp() {
           );
         })}
 
-        {/* New queue button */}
         <button
           onClick={() => createQueueMutation.mutate()}
           className="flex items-center justify-center w-7 h-7 ml-1 rounded-t text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
           title="New Queue"
-          data-testid="btn-new-queue"
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
 
-        {/* Separator */}
-        <div className="w-px h-5 bg-border/40 mx-2 self-center" />
+        <div className="w-px h-5 bg-border/40 mx-2 self-center shrink-0" />
 
-        {/* Tool view tabs */}
         {TOOL_VIEWS.map((v) => {
           const active = activeView === v.id;
           return (
@@ -261,7 +335,6 @@ export default function MainApp() {
                   : "bg-transparent border-transparent text-muted-foreground hover:text-foreground"
                 }
               `}
-              data-testid={`view-${v.id}`}
             >
               {v.label}
             </button>
@@ -270,7 +343,7 @@ export default function MainApp() {
 
         <div className="flex-1" />
 
-        {/* Settings + license in far right of tab bar */}
+        {/* Settings + license */}
         <div className="flex items-center gap-1 self-center pr-1">
           <button
             onClick={() => setActiveView("settings")}
@@ -298,13 +371,12 @@ export default function MainApp() {
         </div>
       </div>
 
-      {/* ── Main Content ──────────────────────────────────────────────────── */}
+      {/* ── Main Content ──────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* Print Queue View */}
         {isQueueView && (
           <>
-            {/* Left: Job list (takes ~55% of width) */}
             <div className="flex flex-col flex-1 overflow-hidden min-w-0" style={{ maxWidth: "56%" }}>
               <QueueJobList
                 queue={activeQueue}
@@ -314,16 +386,14 @@ export default function MainApp() {
                 onDeleteJob={(id) => deleteJobMutation.mutate(id)}
                 onHoldJob={(id) => updateJobMutation.mutate({ id, data: { status: "hold" } })}
                 onReleaseJob={(id) => updateJobMutation.mutate({ id, data: { status: "pending" } })}
-                onPrintJob={(id) => updateJobMutation.mutate({ id, data: { status: "processing", ripProgress: 0 } })}
+                onPrintJob={(id) => printJobMutation.mutate(id)}
                 onDrop={handleDrop}
                 onUpdateJob={(id, data) => updateJobMutation.mutate({ id, data })}
               />
             </div>
 
-            {/* Resize handle */}
-            <div className="w-px bg-border cursor-col-resize hover:bg-primary/40 transition-colors" />
+            <div className="w-px bg-border cursor-col-resize hover:bg-primary/40 transition-colors shrink-0" />
 
-            {/* Right: Preview canvas + Smart Bar (takes ~44%) */}
             <div className="flex flex-col overflow-hidden" style={{ flex: "0 0 44%" }}>
               <PreviewCanvas
                 job={selectedJob}
@@ -334,14 +404,14 @@ export default function MainApp() {
                 job={selectedJob}
                 queue={activeQueue}
                 onUpdate={(data) => selectedJob && updateJobMutation.mutate({ id: selectedJob.id, data })}
-                onPrint={() => selectedJob && updateJobMutation.mutate({ id: selectedJob.id, data: { status: "processing", ripProgress: 0 } })}
+                onPrint={() => selectedJob && printJobMutation.mutate(selectedJob.id)}
                 onOpenColorMgmt={() => setShowColorManagement(true)}
               />
             </div>
           </>
         )}
 
-        {/* Tool views — full width */}
+        {/* Tool views */}
         {activeView === "gang-sheet" && (
           <GangSheetBuilder queue={activeQueue} jobs={jobs} onUpdate={(id, data) => updateJobMutation.mutate({ id, data })} />
         )}
@@ -370,7 +440,7 @@ export default function MainApp() {
         )}
       </div>
 
-      {/* ── Modals ───────────────────────────────────────────────────────── */}
+      {/* ── Modals ───────────────────────────────────────────────────────────── */}
       {showPrintModeManager && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
           onClick={() => setShowPrintModeManager(false)}>

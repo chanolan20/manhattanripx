@@ -63,15 +63,27 @@ const STATUS_LABEL_CLS: Record<string, string> = {
 };
 
 function JobThumbnail({ job }: { job: Job }) {
-  const bg = job.previewData || "#2a2a3a";
+  // previewData can be:
+  //   - a base64 data URL ("data:image/png;base64,...")
+  //   - a plain base64 string without prefix
+  //   - a hex color string ("#rrggbb") for placeholder
+  const isBase64 = job.previewData && (
+    job.previewData.startsWith("data:") ||
+    (job.previewData.length > 50 && !job.previewData.startsWith("#"))
+  );
+  const imgSrc = isBase64
+    ? (job.previewData!.startsWith("data:") ? job.previewData! : `data:image/png;base64,${job.previewData}`)
+    : null;
+
   return (
     <div
       className="w-8 h-8 rounded-sm border border-border/40 shrink-0 overflow-hidden flex items-center justify-center"
-      style={{ backgroundColor: bg }}
+      style={{ backgroundColor: imgSrc ? "transparent" : (job.previewData || "#2a2a3a") }}
     >
-      {/* Simple colored preview block — real thumbnail when available */}
-      {job.fileName?.match(/\.(png|jpg|jpeg)$/i) && (
-        <span className="text-[7px] text-white/40 font-mono">{job.fileType}</span>
+      {imgSrc ? (
+        <img src={imgSrc} alt={job.name} className="w-full h-full object-cover" />
+      ) : (
+        <span className="text-[7px] text-white/40 font-mono">{job.fileType || "IMG"}</span>
       )}
     </div>
   );

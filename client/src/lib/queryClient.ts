@@ -1,6 +1,9 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
+// In Electron, the app loads from http://localhost:5000 so all API calls are relative.
+// In dev (Vite HMR), the vite proxy handles /api → :5000 so relative also works.
+// We never need an absolute base — just use relative paths everywhere.
+const API_BASE = "";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {

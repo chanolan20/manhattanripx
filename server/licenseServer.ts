@@ -25,7 +25,7 @@ const VARIANT_PLAN_MAP: Record<string, { plan: string; seats: number; annual: bo
 
 export interface LicenseValidationResult {
   valid: boolean;
-  plan: "pro" | "studio" | "trial";
+  plan: "pro" | "studio" | "enterprise" | "trial";
   seats: number;
   annual: boolean;
   expiresAt: string | null;
@@ -209,6 +209,9 @@ function offlineValidate(licenseKey: string): LicenseValidationResult {
 
   if (prefix === "MRXS" && clean.length >= 12) {
     return { valid: true, plan: "studio", seats: 3, annual: true, expiresAt: null, activationId: "offline" };
+  }
+  if (prefix === "MRXE" && clean.length >= 12) {
+    return { valid: true, plan: "enterprise", seats: 10, annual: true, expiresAt: null, activationId: "offline" };
   }
   if ((prefix === "MRXP" || prefix === "DEMO") && clean.length >= 4) {
     return { valid: true, plan: "pro", seats: 1, annual: true, expiresAt: null, activationId: "offline" };

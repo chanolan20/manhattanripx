@@ -6,6 +6,12 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Run test files sequentially — SQLite cannot be opened by multiple processes at once
+    pool: "forks",
+    poolOptions: { forks: { singleFork: true } },
+    // Each test file gets its own isolated DB via DB_PATH env
+    isolate: true,
+    setupFiles: ["tests/setup.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov", "html"],

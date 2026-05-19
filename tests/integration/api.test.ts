@@ -37,6 +37,8 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import sharp from "sharp";
+
+// DB_PATH is set in tests/setup.ts (vitest setupFiles) before any imports
 import { registerRoutes } from "../../server/routes";
 
 // ── App setup ─────────────────────────────────────────────────────────────────
