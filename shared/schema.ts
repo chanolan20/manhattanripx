@@ -36,6 +36,22 @@ export const printModes = sqliteTable("print_modes", {
   inkRemoval: integer("ink_removal").notNull().default(0),
   inkRemovalHoleSize: integer("ink_removal_hole_size").notNull().default(10),
   isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  // DF v12 halftone & ink limit fields
+  halftoneType: text("halftone_type").notNull().default("stochastic"),     // stochastic | AM | FM | error_diffusion
+  halftoneLpi: integer("halftone_lpi").notNull().default(60),             // lines per inch (AM)
+  halftoneAngle: integer("halftone_angle").notNull().default(45),         // degrees
+  halftoneDotShape: text("halftone_dot_shape").notNull().default("round"), // round | elliptical | diamond | square
+  tacLimit: integer("tac_limit").notNull().default(320),                  // total area coverage % (max 400)
+  inkLimitC: integer("ink_limit_c").notNull().default(100),
+  inkLimitM: integer("ink_limit_m").notNull().default(100),
+  inkLimitY: integer("ink_limit_y").notNull().default(100),
+  inkLimitK: integer("ink_limit_k").notNull().default(100),
+  inkLimitW: integer("ink_limit_w").notNull().default(90),
+  whiteFlood: integer("white_flood").notNull().default(0),               // extra white flood pass (boolean-ish)
+  whiteDetail: integer("white_detail").notNull().default(1),             // white follows CMYK detail
+  blackEnhancement: integer("black_enhancement").notNull().default(0),   // boost K channel
+  colorBoost: integer("color_boost").notNull().default(0),               // -20 to +20 saturation
+  description: text("description"),
 });
 export const insertPrintModeSchema = createInsertSchema(printModes).omit({ id: true });
 export type InsertPrintMode = z.infer<typeof insertPrintModeSchema>;
@@ -78,8 +94,6 @@ export const jobs = sqliteTable("jobs", {
   colorAdjustBrightness: integer("color_adjust_brightness").notNull().default(0),
   colorAdjustContrast: integer("color_adjust_contrast").notNull().default(0),
   colorAdjustSaturation: integer("color_adjust_saturation").notNull().default(0),
-  whiteOpacityOverride: integer("white_opacity_override"),
-  whiteChokeOverride: integer("white_choke_override"),
   inkCost: real("ink_cost").notNull().default(0),
   createdAt: text("created_at").notNull().default(""),
   ripProgress: integer("rip_progress").notNull().default(0),
@@ -93,8 +107,21 @@ export const jobs = sqliteTable("jobs", {
   hasCutContour: integer("has_cut_contour", { mode: "boolean" }).notNull().default(false),
   cutContourColor: text("cut_contour_color"),
   printMode: text("print_mode"),
+  printModeId: integer("print_mode_id"),
   xOffset: real("x_offset").notNull().default(0),
   yOffset: real("y_offset").notNull().default(0),
+  // DF v12 per-job fields
+  mirrorH: integer("mirror_h", { mode: "boolean" }).notNull().default(false),
+  mirrorV: integer("mirror_v", { mode: "boolean" }).notNull().default(false),
+  cropMarks: integer("crop_marks", { mode: "boolean" }).notNull().default(false),
+  bleed: real("bleed").notNull().default(0),            // inches
+  tileRows: integer("tile_rows").notNull().default(1),
+  tileCols: integer("tile_cols").notNull().default(1),
+  tileOverlap: real("tile_overlap").notNull().default(0.125), // inches
+  whiteOpacityOverride: integer("white_opacity_override"),
+  whiteChokeOverride: integer("white_choke_override"),
+  inkCoverage: text("ink_coverage"),                   // JSON: {C,M,Y,K,W,total}
+  notes: text("notes"),
 });
 export const insertJobSchema = createInsertSchema(jobs).omit({ id: true });
 export type InsertJob = z.infer<typeof insertJobSchema>;

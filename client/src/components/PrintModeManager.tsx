@@ -1,410 +1,456 @@
+/**
+ * Manhattan RIP X — Print Mode Manager
+ * Full DF v12 equivalent: halftone type/LPI/angle/dot, TAC limit,
+ * per-channel ink limits, white settings, pass count, media type.
+ */
+
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { PrintMode, IccProfile } from "@shared/schema";
-import { useState } from "react";
-import { Plus, Pencil, Trash2, Check, X, Copy, Zap, Layers, AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
+import type { PrintMode } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Plus, Trash2, Copy, Check, Pencil } from "lucide-react";
 
 interface Props {
   deviceId: number;
   onClose?: () => void;
 }
 
-// Exact DFv12 engine groups from pmodes/ directory structure
-const ENGINE_GROUPS: Record<string, string> = {
-  "GDIPSRW":   "GDI Print Server RW (Primary DTF)",
-  "GDIPRT":    "GDI Direct Printer",
-  "GDIPOSTS":  "GDI PostScript",
-  "GDISEPS":   "GDI Separations",
-  "BMP":       "BMP / Bitmap",
-  "TIFFPREV":  "TIFF Preview",
+const HALFTONE_TYPES = ["stochastic", "AM", "FM", "error_diffusion"] as const;
+const DOT_SHAPES     = ["round", "elliptical", "diamond", "square", "line"] as const;
+const RENDERING_INTENTS = ["Perceptual", "Relative Colorimetric", "Saturation", "Absolute Colorimetric"] as const;
+const PRINT_ORDERS   = ["W_CMYK", "CMYK_W", "W_CMYK_W", "CMYK"] as const;
+const MEDIA_TYPES    = ["DTF Film", "DTF Film Matte", "Transfer Paper", "Cotton", "Polyester", "Canvas"] as const;
+const RESOLUTIONS    = [360, 600, 720, 1200, 1440, 2880] as const;
+
+const DEFAULT_MODE: Partial<PrintMode> = {
+  name: "New Print Mode",
+  resolution: 1440,
+  colorProfile: "MRX Unified RGB",
+  renderingIntent: "Perceptual",
+  whiteOpacity: 90,
+  whiteChoke: 3,
+  cmykDensity: 100,
+  printOrder: "W_CMYK",
+  passCount: 8,
+  mediaType: "DTF Film",
+  inkRemoval: 0,
+  inkRemovalHoleSize: 10,
+  isDefault: false,
+  halftoneType: "stochastic",
+  halftoneLpi: 60,
+  halftoneAngle: 45,
+  halftoneDotShape: "round",
+  tacLimit: 320,
+  inkLimitC: 100,
+  inkLimitM: 100,
+  inkLimitY: 100,
+  inkLimitK: 100,
+  inkLimitW: 90,
+  whiteFlood: 0,
+  whiteDetail: 1,
+  blackEnhancement: 0,
+  colorBoost: 0,
+  description: "",
 };
 
-function getEngineKey(name: string): string {
-  for (const key of Object.keys(ENGINE_GROUPS)) {
-    if (name.startsWith(key + " —") || name.startsWith(key + " -") || name.startsWith(key + " ")) return key;
-  }
-  return "OTHER";
+function InkBar({ label, value, color, onChange }: {
+  label: string; value: number; color: string; onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-4 h-4 rounded-sm border border-border/60 shrink-0" style={{ backgroundColor: color }} />
+      <span className="text-[10px] font-mono w-4 text-muted-foreground">{label}</span>
+      <Slider
+        value={[value]}
+        onValueChange={([v]) => onChange(v)}
+        min={0} max={100} step={1}
+        className="flex-1"
+      />
+      <input
+        type="number"
+        value={value}
+        min={0} max={100}
+        onChange={e => onChange(Math.min(100, Math.max(0, Number(e.target.value))))}
+        className="w-10 h-5 text-[10px] font-mono text-center bg-muted/60 border border-border rounded-sm text-foreground"
+      />
+      <span className="text-[9px] text-muted-foreground w-2">%</span>
+    </div>
+  );
 }
 
 export default function PrintModeManager({ deviceId, onClose }: Props) {
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState<Partial<PrintMode>>({});
-  const [filterEngine, setFilterEngine] = useState<string>("ALL");
+  const [editing, setEditing] = useState<Partial<PrintMode>>(DEFAULT_MODE);
+  const [dirty, setDirty] = useState(false);
 
-  const { data: printModes = [] } = useQuery<PrintMode[]>({
+  const { data: modes = [] } = useQuery<PrintMode[]>({
     queryKey: ["/api/print-modes", deviceId],
     queryFn: () => apiRequest("GET", `/api/print-modes?deviceId=${deviceId}`).then(r => r.json()),
   });
 
-  const { data: iccProfiles = [] } = useQuery<IccProfile[]>({
-    queryKey: ["/api/icc-profiles"],
+  const selected = modes.find(m => m.id === selectedId) ?? null;
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/print-modes", { ...data, deviceId }).then(r => r.json()),
+    onSuccess: (m) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/print-modes", deviceId] });
+      setSelectedId(m.id);
+      setEditing(m);
+      setDirty(false);
+      toast({ title: "Print mode created" });
+    },
   });
-
-  const sourceProfiles = iccProfiles.filter(p =>
-    !p.name.startsWith("ECA —") && !p.name.endsWith(".ink")
-  );
-
-  const filteredModes = filterEngine === "ALL"
-    ? printModes
-    : printModes.filter(pm => getEngineKey(pm.name) === filterEngine);
-
-  const selected = printModes.find(pm => pm.id === selectedId) || printModes[0];
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) =>
       apiRequest("PATCH", `/api/print-modes/${id}`, data).then(r => r.json()),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/print-modes"] });
-      setEditing(false);
-      toast({ title: "Print mode updated" });
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/print-modes", data).then(r => r.json()),
-    onSuccess: (pm) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/print-modes"] });
-      setSelectedId(pm.id);
-      toast({ title: "Print mode created" });
+    onSuccess: (m) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/print-modes", deviceId] });
+      setEditing(m);
+      setDirty(false);
+      toast({ title: "Saved" });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/print-modes/${id}`).then(r => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/print-modes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/print-modes", deviceId] });
       setSelectedId(null);
+      setEditing(DEFAULT_MODE);
       toast({ title: "Print mode deleted" });
     },
   });
 
-  const startEdit = () => {
-    if (selected) { setEditData({ ...selected }); setEditing(true); }
-  };
-  const saveEdit = () => {
-    if (selected) updateMutation.mutate({ id: selected.id, data: editData });
-  };
-  const duplicateMode = () => {
-    if (selected) createMutation.mutate({ ...selected, id: undefined, name: `${selected.name} (Copy)`, isDefault: false });
+  const set = (key: keyof PrintMode, val: any) => {
+    setEditing(p => ({ ...p, [key]: val }));
+    setDirty(true);
   };
 
-  const pmData = editing ? editData : selected;
-  const setValue = (key: keyof PrintMode, val: any) => setEditData(d => ({ ...d, [key]: val }));
+  const handleSelect = (m: PrintMode) => {
+    setSelectedId(m.id);
+    setEditing({ ...m });
+    setDirty(false);
+  };
 
-  const engineKey = selected ? getEngineKey(selected.name) : "";
-  const isGDIPSRW = engineKey === "GDIPSRW";
-  const isFDT = selected?.name.includes("Forever Dark Transfer");
+  const handleSave = () => {
+    if (selectedId) {
+      updateMutation.mutate({ id: selectedId, data: editing });
+    } else {
+      createMutation.mutate(editing);
+    }
+  };
+
+  const handleDuplicate = () => {
+    if (!selected) return;
+    createMutation.mutate({ ...editing, name: `${editing.name} (copy)`, isDefault: false });
+  };
+
+  const tacUsed = (editing.inkLimitC ?? 100) + (editing.inkLimitM ?? 100) +
+    (editing.inkLimitY ?? 100) + (editing.inkLimitK ?? 100) + (editing.inkLimitW ?? 90);
 
   return (
-    <div className="flex flex-col h-full" data-testid="print-mode-manager">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Print Mode Manager</h2>
-          <p className="text-[10px] text-muted-foreground">Digital Factory v12 — Epson ET-8550 DTF</p>
-        </div>
-        {onClose && (
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
+    <div className="flex h-full bg-card" style={{ minHeight: 500 }}>
+      {/* ── Left: Mode list ───────────────────────────────────────────────── */}
+      <div className="w-52 border-r border-border flex flex-col shrink-0">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
+          <span className="text-[11px] font-semibold text-foreground">Print Modes</span>
+          <button
+            onClick={() => { setSelectedId(null); setEditing(DEFAULT_MODE); setDirty(false); }}
+            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+            title="New mode"
+          >
+            <Plus className="w-3.5 h-3.5" />
           </button>
-        )}
+        </div>
+        <div className="flex-1 overflow-auto">
+          {modes.map(m => (
+            <button
+              key={m.id}
+              onClick={() => handleSelect(m)}
+              className={`w-full text-left px-3 py-2 border-b border-border/30 transition-colors group ${
+                selectedId === m.id ? "bg-primary/10 text-primary" : "hover:bg-muted/30 text-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                {m.isDefault && <Check className="w-2.5 h-2.5 text-green-400 shrink-0" />}
+                <span className="text-[11px] font-medium truncate leading-tight">{m.name}</span>
+              </div>
+              <span className="text-[9px] text-muted-foreground/70 block mt-0.5">
+                {m.resolution}dpi · {m.mediaType}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Mode list */}
-        <div className="w-64 border-r border-border flex flex-col">
-          {/* Engine filter */}
-          <div className="px-2 py-1.5 border-b border-border bg-muted/30">
-            <Select value={filterEngine} onValueChange={setFilterEngine}>
-              <SelectTrigger className="h-6 text-[10px] bg-transparent border-none shadow-none px-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL" className="text-xs">All Engines</SelectItem>
-                {Object.entries(ENGINE_GROUPS).map(([k, label]) => (
-                  <SelectItem key={k} value={k} className="text-xs">{k} — {label.split(" (")[0]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center justify-between px-2 py-1 border-b border-border bg-muted/20">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              {filteredModes.length} Mode{filteredModes.length !== 1 ? "s" : ""}
+      {/* ── Right: Editor ─────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/20 shrink-0">
+          <div className="flex items-center gap-2">
+            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[12px] font-semibold text-foreground">
+              {selectedId ? "Edit Mode" : "New Print Mode"}
+              {dirty && <span className="ml-2 text-[9px] text-amber-400 font-normal">● unsaved</span>}
             </span>
-            <button
-              onClick={() => createMutation.mutate({
-                deviceId, name: "GDIPSRW — New Mode", resolution: 1440,
-                colorProfile: "Photo 8Color 720 1pass", renderingIntent: "Perceptual",
-                whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK",
-                passCount: 8, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false,
-              })}
-              className="p-0.5 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground"
-            >
-              <Plus className="w-3 h-3" />
-            </button>
           </div>
-          <div className="flex-1 overflow-auto">
-            {filteredModes.map((pm) => {
-              const eng = getEngineKey(pm.name);
-              return (
-                <button
-                  key={pm.id}
-                  onClick={() => { setSelectedId(pm.id); setEditing(false); }}
-                  className={`w-full text-left px-3 py-2 text-[11px] border-b border-border/40 transition-colors ${
-                    (selected?.id === pm.id) ? "bg-primary/15 text-primary border-l-2 border-l-primary" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  }`}
-                  data-testid={`pm-${pm.id}`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    {pm.isDefault && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
-                    <span className="truncate font-medium">{pm.name}</span>
-                  </div>
-                  <div className="text-[9px] text-muted-foreground/70 mt-0.5 flex items-center gap-1">
-                    <span className="font-mono bg-muted/50 px-1 rounded text-[8px]">{eng}</span>
-                    <span>{pm.resolution}dpi</span>
-                    {pm.inkRemoval ? <span className="text-amber-400/70">⊗holes</span> : null}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-1">
+            {selectedId && (
+              <>
+                <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={handleDuplicate}>
+                  <Copy className="w-3 h-3 mr-1" /> Duplicate
+                </Button>
+                <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2 text-red-400 hover:text-red-300"
+                  onClick={() => selectedId && deleteMutation.mutate(selectedId)}>
+                  <Trash2 className="w-3 h-3 mr-1" /> Delete
+                </Button>
+              </>
+            )}
+            <Button size="sm" className="h-6 text-[10px] px-3" onClick={handleSave} disabled={!dirty}>
+              Save
+            </Button>
+            {onClose && (
+              <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={onClose}>✕</Button>
+            )}
           </div>
         </div>
 
-        {/* Mode editor */}
-        {selected && (
-          <div className="flex-1 overflow-auto p-4 space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex-1 mr-4">
-                {editing ? (
-                  <Input
-                    value={editData.name || ""}
-                    onChange={e => setValue("name", e.target.value)}
-                    className="text-sm font-semibold h-7 bg-muted/40 border-border w-full"
-                  />
-                ) : (
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">{selected.name}</h3>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      {isGDIPSRW && (
-                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-primary/40 text-primary">
-                          <Zap className="w-2.5 h-2.5 mr-1" />DTF Engine
-                        </Badge>
-                      )}
-                      {isFDT && (
-                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-amber-700/50 text-amber-400">
-                          Forever Dark Transfer
-                        </Badge>
-                      )}
-                      {selected.isDefault && (
-                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-green-700/50 text-green-400">
-                          Default
-                        </Badge>
-                      )}
-                      <span className="text-[10px] text-muted-foreground font-mono bg-muted/40 px-1.5 rounded">
-                        {ENGINE_GROUPS[getEngineKey(selected.name)] || getEngineKey(selected.name)}
-                      </span>
-                    </div>
-                  </div>
-                )}
+        <div className="flex-1 overflow-auto px-4 py-3 space-y-4">
+          {/* ── Basic info ──────────────────────────────────────────────── */}
+          <Section title="Mode Info">
+            <Row label="Name">
+              <input
+                value={editing.name ?? ""}
+                onChange={e => set("name", e.target.value)}
+                className="flex-1 h-[22px] text-[11px] bg-muted/60 border border-border rounded-sm px-2 text-foreground focus:outline-none focus:border-primary"
+              />
+            </Row>
+            <Row label="Description">
+              <input
+                value={(editing as any).description ?? ""}
+                onChange={e => set("description" as any, e.target.value)}
+                placeholder="Optional description…"
+                className="flex-1 h-[22px] text-[11px] bg-muted/60 border border-border rounded-sm px-2 text-foreground/60 focus:outline-none focus:border-primary"
+              />
+            </Row>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isDefault"
+                checked={editing.isDefault ?? false}
+                onChange={e => set("isDefault", e.target.checked)}
+                className="w-3 h-3"
+              />
+              <label htmlFor="isDefault" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+                Set as default mode
+              </label>
+            </div>
+          </Section>
+
+          {/* ── Print settings ──────────────────────────────────────────── */}
+          <Section title="Print Settings">
+            <Row label="Resolution">
+              <select value={editing.resolution ?? 1440} onChange={e => set("resolution", Number(e.target.value))}
+                className="w-32 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                {RESOLUTIONS.map(r => <option key={r} value={r}>{r} dpi</option>)}
+              </select>
+            </Row>
+            <Row label="Pass Count">
+              <select value={editing.passCount ?? 8} onChange={e => set("passCount", Number(e.target.value))}
+                className="w-32 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                {[1, 2, 4, 6, 8, 10, 12, 16].map(p => <option key={p} value={p}>{p} pass{p > 1 ? "es" : ""}</option>)}
+              </select>
+            </Row>
+            <Row label="Media Type">
+              <select value={editing.mediaType ?? "DTF Film"} onChange={e => set("mediaType", e.target.value)}
+                className="w-40 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                {MEDIA_TYPES.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </Row>
+            <Row label="Print Order">
+              <select value={editing.printOrder ?? "W_CMYK"} onChange={e => set("printOrder", e.target.value)}
+                className="w-40 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                {PRINT_ORDERS.map(o => <option key={o} value={o}>{o.replace(/_/g, " → ")}</option>)}
+              </select>
+            </Row>
+          </Section>
+
+          {/* ── Color Management ────────────────────────────────────────── */}
+          <Section title="Color Management">
+            <Row label="Color Profile">
+              <input value={editing.colorProfile ?? "MRX Unified RGB"}
+                onChange={e => set("colorProfile", e.target.value)}
+                className="flex-1 h-[22px] text-[11px] bg-muted/60 border border-border rounded-sm px-2 text-foreground focus:outline-none focus:border-primary" />
+            </Row>
+            <Row label="Rendering Intent">
+              <select value={editing.renderingIntent ?? "Perceptual"} onChange={e => set("renderingIntent", e.target.value)}
+                className="w-56 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                {RENDERING_INTENTS.map(i => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </Row>
+            <Row label="CMYK Density">
+              <div className="flex items-center gap-2 flex-1">
+                <Slider value={[editing.cmykDensity ?? 100]} onValueChange={([v]) => set("cmykDensity", v)}
+                  min={50} max={100} step={1} className="flex-1" />
+                <span className="text-[10px] font-mono w-8 text-right text-foreground">{editing.cmykDensity ?? 100}%</span>
               </div>
-              <div className="flex items-center gap-1">
-                {editing ? (
-                  <>
-                    <Button size="sm" className="h-6 px-2 text-xs" onClick={saveEdit}><Check className="w-3 h-3 mr-1" />Save</Button>
-                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setEditing(false)}><X className="w-3 h-3" /></Button>
-                  </>
-                ) : (
-                  <>
-                    <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={startEdit}><Pencil className="w-3 h-3 mr-1" />Edit</Button>
-                    <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={duplicateMode}><Copy className="w-3 h-3" /></Button>
-                    <Button size="sm" variant="outline" className="h-6 px-2 text-xs text-red-400 hover:text-red-300" onClick={() => deleteMutation.mutate(selected.id)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </>
-                )}
+            </Row>
+            <Row label="Color Boost">
+              <div className="flex items-center gap-2 flex-1">
+                <Slider value={[editing.colorBoost ?? 0]} onValueChange={([v]) => set("colorBoost", v)}
+                  min={-20} max={20} step={1} className="flex-1" />
+                <span className={`text-[10px] font-mono w-8 text-right ${(editing.colorBoost ?? 0) > 0 ? "text-green-400" : (editing.colorBoost ?? 0) < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                  {(editing.colorBoost ?? 0) > 0 ? "+" : ""}{editing.colorBoost ?? 0}
+                </span>
+              </div>
+            </Row>
+            <Row label="Black Enhancement">
+              <div className="flex items-center gap-2 flex-1">
+                <Slider value={[editing.blackEnhancement ?? 0]} onValueChange={([v]) => set("blackEnhancement", v)}
+                  min={0} max={20} step={1} className="flex-1" />
+                <span className="text-[10px] font-mono w-8 text-right text-foreground">{editing.blackEnhancement ?? 0}</span>
+              </div>
+            </Row>
+          </Section>
+
+          {/* ── Halftone Screening ──────────────────────────────────────── */}
+          <Section title="Halftone Screening">
+            <Row label="Type">
+              <select value={editing.halftoneType ?? "stochastic"} onChange={e => set("halftoneType", e.target.value)}
+                className="w-44 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                <option value="stochastic">Stochastic (FM)</option>
+                <option value="AM">Conventional AM</option>
+                <option value="FM">FM Hybrid</option>
+                <option value="error_diffusion">Error Diffusion</option>
+              </select>
+            </Row>
+            {(editing.halftoneType === "AM" || editing.halftoneType === "FM") && (
+              <>
+                <Row label="LPI (lines/in)">
+                  <input type="number" value={editing.halftoneLpi ?? 60} min={20} max={200}
+                    onChange={e => set("halftoneLpi", Number(e.target.value))}
+                    className="w-20 h-[22px] text-[10px] font-mono bg-muted/60 border border-border rounded-sm px-2 text-foreground" />
+                </Row>
+                <Row label="Angle (°)">
+                  <input type="number" value={editing.halftoneAngle ?? 45} min={0} max={360}
+                    onChange={e => set("halftoneAngle", Number(e.target.value))}
+                    className="w-20 h-[22px] text-[10px] font-mono bg-muted/60 border border-border rounded-sm px-2 text-foreground" />
+                </Row>
+                <Row label="Dot Shape">
+                  <select value={editing.halftoneDotShape ?? "round"} onChange={e => set("halftoneDotShape", e.target.value)}
+                    className="w-36 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                    {DOT_SHAPES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  </select>
+                </Row>
+              </>
+            )}
+          </Section>
+
+          {/* ── White Channel ───────────────────────────────────────────── */}
+          <Section title="White Channel (DTF)">
+            <Row label="White Opacity">
+              <div className="flex items-center gap-2 flex-1">
+                <Slider value={[editing.whiteOpacity ?? 90]} onValueChange={([v]) => set("whiteOpacity", v)}
+                  min={0} max={100} step={1} className="flex-1" />
+                <span className="text-[10px] font-mono w-8 text-right text-foreground">{editing.whiteOpacity ?? 90}%</span>
+              </div>
+            </Row>
+            <Row label="White Choke (px)">
+              <input type="number" value={editing.whiteChoke ?? 3} min={0} max={20}
+                onChange={e => set("whiteChoke", Number(e.target.value))}
+                className="w-16 h-[22px] text-[10px] font-mono bg-muted/60 border border-border rounded-sm px-2 text-foreground" />
+            </Row>
+            <div className="flex items-center gap-4 mt-1">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={!!editing.whiteFlood} onChange={e => set("whiteFlood", e.target.checked ? 1 : 0)} className="w-3 h-3" />
+                <span className="text-[10px] text-muted-foreground">White Flood (extra pass)</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={!!editing.whiteDetail} onChange={e => set("whiteDetail", e.target.checked ? 1 : 0)} className="w-3 h-3" />
+                <span className="text-[10px] text-muted-foreground">White Detail Mode</span>
+              </label>
+            </div>
+          </Section>
+
+          {/* ── Ink Limits & TAC ────────────────────────────────────────── */}
+          <Section title="Ink Limits & TAC">
+            <div className="space-y-1.5 mb-3">
+              <InkBar label="C" value={editing.inkLimitC ?? 100} color="#00aeef" onChange={v => set("inkLimitC", v)} />
+              <InkBar label="M" value={editing.inkLimitM ?? 100} color="#ec008c" onChange={v => set("inkLimitM", v)} />
+              <InkBar label="Y" value={editing.inkLimitY ?? 100} color="#ffd700" onChange={v => set("inkLimitY", v)} />
+              <InkBar label="K" value={editing.inkLimitK ?? 100} color="#444" onChange={v => set("inkLimitK", v)} />
+              <InkBar label="W" value={editing.inkLimitW ?? 90} color="#ddd" onChange={v => set("inkLimitW", v)} />
+            </div>
+            <Row label="TAC Limit">
+              <div className="flex items-center gap-2 flex-1">
+                <Slider value={[editing.tacLimit ?? 320]} onValueChange={([v]) => set("tacLimit", v)}
+                  min={100} max={400} step={5} className="flex-1" />
+                <span className={`text-[10px] font-mono w-10 text-right font-semibold ${
+                  (editing.tacLimit ?? 320) > 350 ? "text-red-400" :
+                  (editing.tacLimit ?? 320) > 300 ? "text-amber-400" : "text-green-400"
+                }`}>{editing.tacLimit ?? 320}%</span>
+              </div>
+            </Row>
+            {/* TAC usage preview bar */}
+            <div className="mt-1">
+              <div className="flex items-center justify-between text-[9px] text-muted-foreground mb-1">
+                <span>Max possible ink usage (sum of limits)</span>
+                <span className={tacUsed > (editing.tacLimit ?? 320) ? "text-amber-400" : "text-green-400"}>{tacUsed}%</span>
+              </div>
+              <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, (tacUsed / 400) * 100)}%`,
+                    backgroundColor: tacUsed > (editing.tacLimit ?? 320) ? "#f59e0b" : "#22c55e",
+                  }} />
               </div>
             </div>
+          </Section>
 
-            <div className="grid grid-cols-2 gap-4">
-              <PMSection title="Output Resolution">
-                <PMSelect label="DPI" value={String(pmData?.resolution)}
-                  options={["300","600","720","1200","1440","2880"]}
-                  onChange={v => setValue("resolution", Number(v))} disabled={!editing} />
-                <PMSelect label="Pass Count" value={String(pmData?.passCount)}
-                  options={["1","2","4","6","8","12"]}
-                  onChange={v => setValue("passCount", Number(v))} disabled={!editing} />
-              </PMSection>
-
-              <PMSection title="Color Management">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] text-muted-foreground">ICC Source Profile</label>
-                  {editing ? (
-                    <Select value={pmData?.colorProfile} onValueChange={v => setValue("colorProfile", v)}>
-                      <SelectTrigger className="h-6 text-xs bg-muted/40 border-border">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        <SelectItem value="Photo 8Color 720 1pass" className="text-xs font-semibold text-primary">Photo 8Color 720 1pass ★</SelectItem>
-                        {sourceProfiles.filter(p => p.colorSpace === "RGB" && p.name !== "Photo 8Color 720 1pass").map(p => (
-                          <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
-                        ))}
-                        <SelectItem value="__sep__" disabled className="text-[9px] text-muted-foreground">── CMYK ──</SelectItem>
-                        {sourceProfiles.filter(p => p.colorSpace === "CMYK").map(p => (
-                          <SelectItem key={p.id} value={p.name} className="text-xs">{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="text-[11px] font-medium text-foreground py-1">{pmData?.colorProfile}</div>
-                  )}
-                </div>
-                <PMSelect label="Rendering Intent" value={pmData?.renderingIntent || "Perceptual"}
-                  options={["Perceptual", "Relative Colorimetric", "Saturation", "Absolute Colorimetric"]}
-                  onChange={v => setValue("renderingIntent", v)} disabled={!editing} />
-              </PMSection>
-
-              <PMSection title="Underbase + Highlight White">
-                <PMSlider label="Underbase %" value={pmData?.whiteOpacity ?? 90}
-                  min={0} max={100} step={5} unit="%" onChange={v => setValue("whiteOpacity", v)} disabled={!editing} />
-                <PMSlider label="Highlight White %" value={(pmData as any)?.highlightWhite ?? 100}
-                  min={0} max={100} step={5} unit="%" onChange={v => setValue("highlightWhite" as any, v)} disabled={!editing} />
-                <PMSlider label="Underbase Choke" value={pmData?.whiteChoke ?? 3}
-                  min={0} max={10} step={1} unit="px" onChange={v => setValue("whiteChoke", v)} disabled={!editing} />
-                <div className="text-[9px] text-muted-foreground/60">
-                  Recommended: Underbase 50–60% · Highlight up to 100% · Choke 2–3px
-                </div>
-              </PMSection>
-
-              <PMSection title="CMYK Density">
-                <PMSlider label="CMYK Density" value={pmData?.cmykDensity ?? 100}
-                  min={50} max={150} step={5} unit="%" onChange={v => setValue("cmykDensity", v)} disabled={!editing} />
-                <PMSelect label="Print Order" value={pmData?.printOrder || "W_CMYK"}
-                  options={["W_CMYK", "CMYK_W"]}
-                  onChange={v => setValue("printOrder", v)} disabled={!editing} />
-              </PMSection>
-
-              <PMSection title="Media Settings">
-                <PMSelect label="Media Type" value={pmData?.mediaType || "DTF Film"}
-                  options={["DTF Film","DTF Film (Premium)","DTF Film (Matte)","DTF Film (Cold Peel)","DTF Film (Hot Peel)","Single Weight Matte Paper","Photo Paper"]}
-                  onChange={v => setValue("mediaType", v)} disabled={!editing} />
-                <PMSelect label="Feed Mode" value={(pmData as any)?.feedMode || "Sheet"}
-                  options={["Sheet","Roll"]}
-                  onChange={v => setValue("feedMode" as any, v)} disabled={!editing} />
-              </PMSection>
-
-              <PMSection title="Ink Removal (Holes / Stripes)">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-muted-foreground">Enable Ink Removal</span>
-                  <Switch checked={!!pmData?.inkRemoval}
-                    onCheckedChange={v => setValue("inkRemoval", v ? 1 : 0)} disabled={!editing} />
-                </div>
-                {pmData?.inkRemoval ? (
-                  <PMSlider label="Hole Size" value={pmData?.inkRemovalHoleSize ?? 10}
-                    min={5} max={50} step={5} unit="px"
-                    onChange={v => setValue("inkRemovalHoleSize", v)} disabled={!editing} />
-                ) : null}
-                <div className="text-[9px] text-muted-foreground/50">
-                  Used for "Forever Dark Transfer with Holes" and "with Stripes" modes
-                </div>
-              </PMSection>
-            </div>
-
-            {/* White Underblock Wizard */}
-            <div className="bg-amber-900/10 border border-amber-800/30 rounded p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-amber-400" />
-                  <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">White Underblock Wizard</p>
-                </div>
-                {editing && (
-                  <button className="text-[10px] text-amber-400 hover:text-amber-300 border border-amber-700/50 rounded px-2 py-0.5"
-                    onClick={() => { setValue("whiteOpacity", 55); setValue("whiteChoke", 3); }}>
-                    Auto-configure
-                  </button>
-                )}
+          {/* ── Ink Removal ─────────────────────────────────────────────── */}
+          <Section title="Ink Removal (Holes)">
+            <Row label="Ink Removal">
+              <div className="flex items-center gap-2 flex-1">
+                <Slider value={[editing.inkRemoval ?? 0]} onValueChange={([v]) => set("inkRemoval", v)}
+                  min={0} max={100} step={1} className="flex-1" />
+                <span className="text-[10px] font-mono w-8 text-right text-foreground">{editing.inkRemoval ?? 0}%</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { step: "1", label: "Underbase", val: "50–60%", hint: "Full coverage" },
-                  { step: "2", label: "Highlight",  val: "100%",  hint: "Max whites" },
-                  { step: "3", label: "Choke",      val: "2–3px", hint: "Color bleed" },
-                ].map(s => (
-                  <div key={s.step} className="bg-amber-900/20 border border-amber-800/20 rounded p-1.5 text-center">
-                    <div className="w-4 h-4 rounded-full bg-amber-900/40 text-amber-300 text-[9px] font-bold flex items-center justify-center mx-auto mb-1">{s.step}</div>
-                    <p className="text-[9px] font-medium text-amber-300">{s.label}</p>
-                    <p className="text-[10px] font-semibold text-amber-200 mono">{s.val}</p>
-                    <p className="text-[8px] text-amber-400/60">{s.hint}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Feature flags */}
-            <div className="bg-muted/20 border border-border rounded p-2">
-              <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Active Feature Flags</p>
-              <div className="flex flex-wrap gap-1">
-                {["UNDERBASE","DTG","DARKMODE","QFLUIDMASK","MNGDEVSPOT","PMCNEW","PDF","SVG","PSD","APHOTO","MULTILANG"].map(flag => (
-                  <span key={flag} className="text-[9px] px-1.5 py-0.5 rounded border border-green-700/50 text-green-400 bg-green-900/10 font-mono">
-                    {flag}=1
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+            </Row>
+            {(editing.inkRemoval ?? 0) > 0 && (
+              <Row label="Hole Size (px)">
+                <input type="number" value={editing.inkRemovalHoleSize ?? 10} min={1} max={100}
+                  onChange={e => set("inkRemovalHoleSize", Number(e.target.value))}
+                  className="w-16 h-[22px] text-[10px] font-mono bg-muted/60 border border-border rounded-sm px-2 text-foreground" />
+              </Row>
+            )}
+          </Section>
+        </div>
       </div>
     </div>
   );
 }
 
-function PMSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-muted/20 border border-border rounded-md p-3 space-y-2">
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-function PMSelect({ label, value, options, onChange, disabled }: {
-  label: string; value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-[10px] text-muted-foreground block mb-0.5">{label}</label>
-      {disabled ? (
-        <div className="text-[11px] font-medium text-foreground py-1">{value}</div>
-      ) : (
-        <Select value={value} onValueChange={onChange}>
-          <SelectTrigger className="h-6 text-xs bg-muted/40 border-border"><SelectValue /></SelectTrigger>
-          <SelectContent>{options.map(o => <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>)}</SelectContent>
-        </Select>
-      )}
-    </div>
-  );
-}
-
-function PMSlider({ label, value, min, max, step, unit, onChange, disabled }: {
-  label: string; value: number; min: number; max: number; step: number;
-  unit?: string; onChange: (v: number) => void; disabled?: boolean;
-}) {
-  return (
-    <div>
-      <div className="flex justify-between mb-1">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <span className="text-[10px] mono font-semibold text-foreground">{value}{unit}</span>
+      <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 pb-1 border-b border-border/40">
+        {title}
       </div>
-      <Slider value={[value]} min={min} max={max} step={step}
-        onValueChange={([v]) => onChange(v)} disabled={disabled} className="w-full" />
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-[10px] text-muted-foreground w-28 shrink-0">{label}</span>
+      <div className="flex-1 flex items-center gap-2">{children}</div>
     </div>
   );
 }

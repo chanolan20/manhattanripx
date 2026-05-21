@@ -67,25 +67,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Run unit tests — RIP pipeline
-        run: npx vitest run tests/unit/rip.test.ts --reporter=verbose
-        timeout-minutes: 5
-
-      - name: Run unit tests — Print module
-        run: npx vitest run tests/unit/print.test.ts --reporter=verbose
-        timeout-minutes: 3
-
-      - name: Run unit tests — Storage layer
-        run: npx vitest run tests/unit/storage.test.ts --reporter=verbose
-        timeout-minutes: 3
-
-      - name: Run integration tests — API routes
-        run: npx vitest run tests/integration/api.test.ts --reporter=verbose
-        timeout-minutes: 8
-
       - name: Run all tests with coverage
-        run: npx vitest run --coverage
-        timeout-minutes: 10
+        run: npx vitest run --coverage --reporter=verbose
+        timeout-minutes: 15
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

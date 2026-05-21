@@ -637,3 +637,140 @@ export function getProfileForModel(modelName: string): PrinterProfile | undefine
     lower.includes(p.model.toLowerCase().replace(/[-\s]/g, ""))
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Windows Driver Name Map
+// Maps profile IDs to exact Windows printer driver names as installed by
+// Epson's official Windows driver packages. These match what appears in
+// Windows Devices & Printers / Print Management / wmic printer list.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WindowsDriverInfo {
+  profileId: string;
+  /** Exact driver name string in Windows driver store */
+  windowsDriverName: string;
+  /** WSD (Web Services for Devices) printer name template */
+  wsdName: string;
+  /** USB printer port name (Device Manager → Ports) */
+  usbPortName: string;
+  /** IPP URL for Windows IPP printing */
+  ippUrl: string;
+  /** GUID of the Epson driver package (from inf/oem*.inf) */
+  driverPackageGuid?: string;
+  /** Minimum Windows version supported */
+  minWindows: "10" | "11";
+}
+
+export const WINDOWS_DRIVER_MAP: WindowsDriverInfo[] = [
+  {
+    profileId: "epson_et8550",
+    windowsDriverName: "EPSON ET-8550 Series",
+    wsdName: "EPSON ET-8550 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_et8550",
+    windowsDriverName: "EPSON ET-8550 DTF",
+    wsdName: "EPSON ET-8550 DTF",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_et8500",
+    windowsDriverName: "EPSON ET-8500 Series",
+    wsdName: "EPSON ET-8500 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_l18050",
+    windowsDriverName: "Epson L18050 Series",
+    wsdName: "Epson L18050 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_l8050",
+    windowsDriverName: "Epson L8050 Series",
+    wsdName: "Epson L8050 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_l8180",
+    windowsDriverName: "Epson L8180 Series",
+    wsdName: "Epson L8180 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_l8160",
+    windowsDriverName: "Epson L8160 Series",
+    wsdName: "Epson L8160 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_scp700",
+    windowsDriverName: "Epson SC-P700 Series",
+    wsdName: "Epson SC-P700 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_scp900",
+    windowsDriverName: "Epson SC-P900 Series",
+    wsdName: "Epson SC-P900 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_l1800",
+    windowsDriverName: "Epson L1800 Series",
+    wsdName: "Epson L1800 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_l805",
+    windowsDriverName: "Epson L805 Series",
+    wsdName: "Epson L805 Series",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+  {
+    profileId: "epson_1390",
+    windowsDriverName: "EPSON Stylus Photo 1390",
+    wsdName: "EPSON Stylus Photo 1390",
+    usbPortName: "USB001",
+    ippUrl: "http://{{host}}:631/ipp/print",
+    minWindows: "10",
+  },
+];
+
+/** Look up Windows driver info by profile ID */
+export function getWindowsDriverInfo(profileId: string): WindowsDriverInfo | undefined {
+  return WINDOWS_DRIVER_MAP.find(d => d.profileId === profileId);
+}
+
+/** Find a profile by Windows driver name (fuzzy match) */
+export function getProfileByWindowsDriverName(driverName: string): PrinterProfile | undefined {
+  const lower = driverName.toLowerCase();
+  const match = WINDOWS_DRIVER_MAP.find(d =>
+    d.windowsDriverName.toLowerCase() === lower ||
+    lower.includes(d.wsdName.toLowerCase().split(" ").pop()!.toLowerCase())
+  );
+  return match ? getProfileById(match.profileId) : undefined;
+}

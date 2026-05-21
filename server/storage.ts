@@ -2,7 +2,9 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { devices, queues, jobs, printModes, iccProfiles, settings, license } from "@shared/schema";
 
-const sqlite = new Database("data.db");
+// Use DB_PATH injected by Electron main.js (userData dir) — fallback for dev
+const dbPath = process.env.DB_PATH || "data.db";
+const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 const db = drizzle(sqlite);
 
@@ -16,8 +18,12 @@ sqlite.exec(`
     connection TEXT NOT NULL DEFAULT 'USB',
     ip_address TEXT,
     paper_width REAL NOT NULL DEFAULT 13.0,
-    ink_channels TEXT NOT NULL DEFAULT '["C","M","Y","K","W"]'
+    ink_channels TEXT NOT NULL DEFAULT '["C","M","Y","K","W"]',
+    port TEXT NOT NULL DEFAULT 'USB001'
   );
+  -- Migration: add port column if upgrading from an older DB
+  CREATE TABLE IF NOT EXISTS _migrations (id INTEGER PRIMARY KEY);
+  INSERT OR IGNORE INTO _migrations(id) VALUES(1);
   CREATE TABLE IF NOT EXISTS print_modes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id INTEGER NOT NULL,
@@ -107,6 +113,44 @@ sqlite.exec(`
     trial_jobs_limit INTEGER NOT NULL DEFAULT 25
   );
 `);
+
+// ── Schema migrations (idempotent ALTER TABLE for existing DBs) ──────────────
+try { sqlite.exec(`ALTER TABLE devices ADD COLUMN port TEXT NOT NULL DEFAULT 'USB001'`); } catch {}
+try { sqlite.exec(`ALTER TABLE queues ADD COLUMN sheet_width REAL NOT NULL DEFAULT 22.0`); } catch {}
+try { sqlite.exec(`ALTER TABLE queues ADD COLUMN sheet_height REAL NOT NULL DEFAULT 60.0`); } catch {}
+try { sqlite.exec(`ALTER TABLE queues ADD COLUMN substrate_color TEXT NOT NULL DEFAULT '#ffffff'`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN x_offset REAL NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN y_offset REAL NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN print_mode TEXT`); } catch {}
+// v2.1 migrations
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN print_mode_id INTEGER`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN mirror_h INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN mirror_v INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN crop_marks INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN bleed REAL NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN tile_rows INTEGER NOT NULL DEFAULT 1`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN tile_cols INTEGER NOT NULL DEFAULT 1`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN tile_overlap REAL NOT NULL DEFAULT 0.125`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN white_opacity_override INTEGER`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN white_choke_override INTEGER`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN ink_coverage TEXT`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN notes TEXT`); } catch {}
+// v2.1 print_modes halftone + ink limit columns
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_type TEXT NOT NULL DEFAULT 'stochastic'`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_lpi INTEGER NOT NULL DEFAULT 60`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_angle INTEGER NOT NULL DEFAULT 45`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_dot_shape TEXT NOT NULL DEFAULT 'round'`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN tac_limit INTEGER NOT NULL DEFAULT 320`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_c INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_m INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_y INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_k INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_w INTEGER NOT NULL DEFAULT 90`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN white_flood INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN white_detail INTEGER NOT NULL DEFAULT 1`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN black_enhancement INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN color_boost INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN description TEXT`); } catch {}
 
 import type {
   Device, InsertDevice,
@@ -417,6 +461,7 @@ export class DatabaseStorage implements IStorage {
       // Output profiles (from PDF/Resource/Profiles/output/)
       { name: "Photo 8Color 720 1pass",    colorSpace: "RGB",  description: "Epson 8-color photo 720dpi 1-pass output — DFv12 default DTF profile", isBuiltIn: true, deviceId: null },
       { name: "HexSSExFine600",            colorSpace: "RGB",  description: "Hex 6-color SuperSuperFine 600dpi output profile", isBuiltIn: true, deviceId: null },
+      { name: "CADlink Unified RGB",        colorSpace: "RGB",  description: "CADlink Unified RGB — universal RGB working space for DTF output", isBuiltIn: true, deviceId: null },
       { name: "EuroscaleCoated",           colorSpace: "CMYK", description: "Euroscale Coated v2 — ISO 12647-2 coated press standard", isBuiltIn: true, deviceId: null },
       { name: "ISOcoated",                 colorSpace: "CMYK", description: "ISO Coated — European offset coated press standard", isBuiltIn: true, deviceId: null },
       // CMYK source profiles (from PDF/Resource/Profiles/cmyk/)
@@ -431,6 +476,20 @@ export class DatabaseStorage implements IStorage {
       { name: "SWOP-CMYK",                 colorSpace: "CMYK", description: "SWOP to CMYK ink separation", isBuiltIn: true, deviceId: null },
       // Device-Link profiles — CMYK ink limits (from Devicelinks/)
       { name: "CleanWhite",                colorSpace: "CMYK", description: "Device-Link: Clean White — reduces ink bleeding at white boundaries", isBuiltIn: true, deviceId: null },
+      // DL — Device-Link profiles (named as tested)
+      { name: "DL — sRGB → Epson ET8550 DTF",       colorSpace: "CMYK", description: "Device-Link: sRGB to Epson ET-8550 DTF ink mapping", isBuiltIn: true, deviceId: null },
+      { name: "DL — AdobeRGB → Epson ET8550 DTF",   colorSpace: "CMYK", description: "Device-Link: AdobeRGB to Epson ET-8550 DTF ink mapping", isBuiltIn: true, deviceId: null },
+      { name: "DL — CMYK → Epson ET8550 White",      colorSpace: "CMYK", description: "Device-Link: CMYK to white underbase for Epson ET-8550", isBuiltIn: true, deviceId: null },
+      { name: "DL — Vivid Color Boost",               colorSpace: "CMYK", description: "Device-Link: vivid color saturation boost for DTF", isBuiltIn: true, deviceId: null },
+      { name: "DL — Soft Proofing sRGB",              colorSpace: "RGB",  description: "Device-Link: soft proofing simulation from sRGB", isBuiltIn: true, deviceId: null },
+      { name: "DL — Ink Reduction 80pc",              colorSpace: "CMYK", description: "Device-Link: total ink area coverage 80%", isBuiltIn: true, deviceId: null },
+      { name: "DL — Ink Reduction 70pc",              colorSpace: "CMYK", description: "Device-Link: total ink area coverage 70%", isBuiltIn: true, deviceId: null },
+      { name: "DL — Ink Reduction 60pc",              colorSpace: "CMYK", description: "Device-Link: total ink area coverage 60%", isBuiltIn: true, deviceId: null },
+      { name: "DL — White Boost 10pc",                colorSpace: "CMYK", description: "Device-Link: white ink opacity +10%", isBuiltIn: true, deviceId: null },
+      { name: "DL — White Boost 20pc",                colorSpace: "CMYK", description: "Device-Link: white ink opacity +20%", isBuiltIn: true, deviceId: null },
+      { name: "DL — White Reduce 10pc",               colorSpace: "CMYK", description: "Device-Link: white ink opacity -10%", isBuiltIn: true, deviceId: null },
+      { name: "DL — GCR Medium",                     colorSpace: "CMYK", description: "Device-Link: medium gray component replacement", isBuiltIn: true, deviceId: null },
+      { name: "DL — GCR Heavy",                      colorSpace: "CMYK", description: "Device-Link: heavy gray component replacement", isBuiltIn: true, deviceId: null },
       { name: "CMYK 60pc max",             colorSpace: "CMYK", description: "Device-Link: CMYK max ink limit 60%", isBuiltIn: true, deviceId: null },
       { name: "CMYK 65pc max",             colorSpace: "CMYK", description: "Device-Link: CMYK max ink limit 65%", isBuiltIn: true, deviceId: null },
       { name: "CMYK 70pc max",             colorSpace: "CMYK", description: "Device-Link: CMYK max ink limit 70%", isBuiltIn: true, deviceId: null },

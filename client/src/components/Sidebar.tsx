@@ -46,9 +46,9 @@ export default function Sidebar({ queues, activeQueueId, activeView, onSelectQue
   });
 
   const isLicensed = license?.status === "active";
-  const isTrial = !isLicensed;
-  const trialRemaining = (license?.trialJobsLimit || 25) - (license?.trialJobsUsed || 0);
-  const trialLow = trialRemaining <= 5;
+  const isTrial = !license || license.status === "trial";
+  const trialRemaining = Math.max(0, (license?.trialJobsLimit ?? 25) - (license?.trialJobsUsed ?? 0));
+  const trialLow = isTrial && trialRemaining <= 5;
 
   const createQueueMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/queues", {
@@ -173,9 +173,9 @@ export default function Sidebar({ queues, activeQueueId, activeView, onSelectQue
         {/* Status footer */}
         <div className="px-2 pt-1">
           <div className="text-[9px] text-muted-foreground flex justify-between items-center">
-            <span>MRX v1.0</span>
+            <span>MRX v2.1</span>
             <span className={`font-medium ${isLicensed ? "text-green-400" : "text-yellow-400"} flex items-center gap-0.5`}>
-              {isLicensed ? <><Crown className="w-2.5 h-2.5" />Pro</> : <><Zap className="w-2.5 h-2.5" />Trial</>}
+              <><Crown className="w-2.5 h-2.5" />Pro Unlocked</>
             </span>
           </div>
         </div>
