@@ -1,73 +1,79 @@
 /**
- * Manhattan RIP X — License Screen
- * This build is FULLY UNLOCKED — all features enabled, no activation required.
+ * Manhattan RIP X — License Screen (FULLY UNLOCKED — Personal Copy)
  */
+import { CheckCircle, Unlock, Zap } from "lucide-react";
 
-import { ShieldCheck, Crown, Zap, CheckCircle2 } from "lucide-react";
+interface LicenseScreenProps {
+  onClose?: () => void;
+}
 
-export default function LicenseScreen() {
+export default function LicenseScreen({ onClose }: LicenseScreenProps) {
   return (
-    <div className="flex flex-col flex-1 overflow-auto p-6 gap-6">
-      <div className="flex items-center gap-3">
-        <ShieldCheck className="w-6 h-6 text-green-400" />
-        <div>
-          <h2 className="text-base font-semibold text-foreground">License — Pro Unlocked</h2>
-          <p className="text-xs text-muted-foreground">All features enabled. No activation required.</p>
-        </div>
-      </div>
-
-      {/* Status card */}
-      <div className="border border-green-800/40 bg-green-950/20 rounded-lg p-5 flex items-start gap-4">
-        <Crown className="w-8 h-8 text-green-400 shrink-0 mt-0.5" />
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm font-semibold text-green-300">PRO — Fully Unlocked</span>
-            <span className="text-[10px] bg-green-900/50 text-green-400 border border-green-700/40 px-1.5 py-0.5 rounded font-mono">ACTIVE</span>
+    <div className="flex flex-col h-full bg-zinc-900 text-zinc-100 overflow-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700 bg-zinc-800">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center">
+            <Unlock className="w-4 h-4 text-white" />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Manhattan RIP X is fully activated. All features — unlimited prints, gang sheet builder,
-            color management, hot folders, AI profiler, all printer modes — are available with no restrictions.
-          </p>
+          <div>
+            <h1 className="text-base font-semibold text-white">Manhattan RIP X</h1>
+            <p className="text-xs text-zinc-400">License & Activation</p>
+          </div>
         </div>
+        {onClose && (
+          <button onClick={onClose} className="text-zinc-400 hover:text-white text-xl leading-none">×</button>
+        )}
       </div>
 
-      {/* Feature list */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-border bg-muted/20">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Included Features</span>
+      <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6">
+        {/* Unlocked badge */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-20 h-20 rounded-full bg-green-500/10 border-2 border-green-500 flex items-center justify-center">
+            <CheckCircle className="w-10 h-10 text-green-400" />
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white">Pro — Fully Unlocked</h2>
+            <p className="text-zinc-400 text-sm mt-1">All features active · No print limit · No expiry</p>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-0 divide-y divide-border">
+
+        {/* License details */}
+        <div className="w-full max-w-sm bg-zinc-800 border border-zinc-700 rounded-lg p-4 space-y-2 text-sm">
           {[
-            "Unlimited prints",
-            "Gang Sheet Builder",
-            "Full color management (ICC)",
-            "Hot Folder automation",
-            "AI Auto-Profiler",
-            "Separation Studio",
-            "All printer modes",
-            "TAC / ink limit control",
-            "Halftone screening",
-            "White flood/detail control",
-            "Mirror / flip / tile",
-            "Crop marks + bleed",
-            "Multi-queue support",
-            "Shopify webhook integration",
-            "Priority support",
-            "Future updates included",
-          ].map((feat, i) => (
-            <div key={i} className="flex items-center gap-2 px-4 py-2.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
-              <span className="text-xs text-foreground">{feat}</span>
+            ["Plan", "Pro (Lifetime)"],
+            ["License Key", "MRXP-PERSONAL-UNLOCKED-2026"],
+            ["Email", "gomezfrankg@gmail.com"],
+            ["Prints Remaining", "Unlimited"],
+            ["Expires", "Never"],
+          ].map(([k, v]) => (
+            <div key={k} className="flex justify-between">
+              <span className="text-zinc-400">{k}</span>
+              <span className="text-zinc-100 font-mono text-xs">{v}</span>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Build info */}
-      <div className="text-[10px] text-muted-foreground/50 font-mono space-y-0.5">
-        <div>Build: Manhattan RIP X v2.1.0</div>
-        <div>Platform: {typeof window !== 'undefined' && (window as any).electronAPI?.platform === 'win32' ? 'Windows' : 'macOS'}</div>
-        <div>License: MRX-UNLOCKED (Pro, unlimited seats)</div>
+        {/* Features */}
+        <div className="w-full max-w-sm space-y-2">
+          {[
+            "Full RIP engine — halftone, TAC, ink limits",
+            "All Epson DTF drivers (ET-8550, L18050, SC-P700…)",
+            "Gang Sheet Builder — unlimited sheets",
+            "Color Management — ICC profiles, soft proof",
+            "Windows & macOS — all features unlocked",
+            "Hot Folder, Nesting, AI Auto-Profiler",
+          ].map((f) => (
+            <div key={f} className="flex items-center gap-2 text-sm text-zinc-300">
+              <Zap className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              {f}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-zinc-600 text-center pt-2">
+          Manhattan RIP X v2.1.0 · © 2026 Manhattan Viral · Personal License
+        </p>
       </div>
     </div>
   );

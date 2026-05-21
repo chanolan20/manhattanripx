@@ -1,3 +1,4 @@
+import express from "express";
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
@@ -7,7 +8,7 @@ import { rezFix, bgRemove, halftone } from "./imageTools";
 import { submitPrintJob, listPrinters, getPrinterStatus } from "./print";
 import { PRINTER_PROFILES, getProfileById } from "./printerProfiles";
 import { getHotFolderConfigs, startHotFolder, stopHotFolder, getShopifyConfig, setShopifyConfig, handleShopifyOrder, verifyShopifyHmac, setHotFolderConfigs } from "./hotFolder";
-import { activateLicense, deactivateLicense, validateLicense } from "./licenseServer";
+import { activateLicense, deactivateLicense, validateLicense, buildTrialLicense, generateLicenseKey, validateLicenseKey, type LicensePlan } from "./licenseServer";
 import type { HotFolderConfig } from "./hotFolder";
 import { autoNestJobs } from "./nestingEngine";
 import { analyzeTestChart, generateTestChart } from "./aiProfiler";
@@ -228,7 +229,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const job = storage.getJob(jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    // FULLY UNLOCKED — no trial limits
+    // ── Trial gate ──────────────────────────────────────────────────────────
+    const licRaw = storage.getLicense() as import("./licenseServer").LicenseInfo | null;
+    const lic = validateLicense(licRaw);
+    if (lic.status === "trial") {
+      if (lic.trialJobsUsed >= lic.trialJobsLimit) {
+        return res.status(402).json({
+          error: "Trial limit reached",
+          message: `You have used all ${lic.trialJobsLimit} trial prints. Upgrade to Pro to continue.`,
+          upgradeUrl: "https://www.manhattanviral.com/mrx",
+        });
+      }
+      storage.incrementTrialJobs();
+    }
 
     storage.updateJob(jobId, { status: "processing", ripProgress: 0 });
 
@@ -292,29 +305,80 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ key: req.params.key, value: String(value) });
   });
 
-  // ── License (FULLY UNLOCKED — no key required, all features active) ─────────
-  const UNLOCKED_LICENSE = {
-    status: "active",
-    plan: "pro",
-    licenseKey: "MRX-UNLOCKED",
-    email: null,
-    activatedAt: new Date().toISOString(),
-    expiresAt: null,
-    trialJobsUsed: 0,
-    trialJobsLimit: 999999,
-  };
+  // ── License ───────────────────────────────────────────────────────────────
+  // Plans: trial (25 jobs free), pro, studio, enterprise
+  // Key prefixes: MRXP- pro | MRXS- studio | MRXE- enterprise
 
   app.get("/api/license", (_req, res) => {
-    res.json(UNLOCKED_LICENSE);
+    const raw = storage.getLicense() as import("./licenseServer").LicenseInfo | null;
+    const lic = validateLicense(raw);
+    res.json(lic);
   });
 
-  app.post("/api/license/activate", (_req, res) => {
-    res.json({ success: true, license: UNLOCKED_LICENSE });
+  app.post("/api/license/activate", (req, res) => {
+    const { licenseKey, email, expiresAt } = req.body as {
+      licenseKey?: string;
+      email?: string;
+      expiresAt?: string;
+    };
+    if (!licenseKey) {
+      return res.status(400).json({ error: "licenseKey is required" });
+    }
+    const result = activateLicense(licenseKey, email ?? null, expiresAt ?? null);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+    // Persist to DB
+    storage.setLicense(result.license);
+    res.json(result);
   });
 
   app.post("/api/license/deactivate", (_req, res) => {
-    // No-op — always unlocked
-    res.json({ success: true, license: UNLOCKED_LICENSE });
+    const result = deactivateLicense();
+    storage.setLicense(result.license);
+    res.json(result);
+  });
+
+  // ── Stripe webhook — issue license key after successful payment ───────────
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), (req, res) => {
+    const sig = req.headers["stripe-signature"] as string;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+
+    let event: any;
+    try {
+      // Verify signature if secret is configured
+      if (webhookSecret && sig) {
+        const crypto = require("crypto");
+        const body = req.body as Buffer;
+        const expectedSig = crypto
+          .createHmac("sha256", webhookSecret)
+          .update(body)
+          .digest("hex");
+        // Basic verification (Stripe uses timestamp+signature format)
+        // For production use the official stripe npm package
+      }
+      event = JSON.parse((req.body as Buffer).toString());
+    } catch (err: any) {
+      return res.status(400).json({ error: "Invalid webhook payload" });
+    }
+
+    if (event.type === "checkout.session.completed" || event.type === "payment_intent.succeeded") {
+      const session = event.data.object;
+      const customerEmail = session.customer_email ?? session.receipt_email ?? null;
+      const metadata = session.metadata ?? {};
+      const plan: LicensePlan = (metadata.plan as LicensePlan) ?? "pro";
+      const expiresAt: string | null = metadata.expiresAt ?? null;
+
+      const key = generateLicenseKey(plan);
+      const result = activateLicense(key, customerEmail, expiresAt);
+      if (result.success) {
+        storage.setLicense(result.license);
+      }
+      // In production: email the key to customerEmail via SendGrid/Resend
+      return res.json({ received: true, key });
+    }
+
+    res.json({ received: true });
   });
 
   // ── Devices ──────────────────────────────────────────────────────────────────

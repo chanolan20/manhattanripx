@@ -45,10 +45,10 @@ export default function Sidebar({ queues, activeQueueId, activeView, onSelectQue
     refetchInterval: 60000,
   });
 
-  const isLicensed = true; // FULLY UNLOCKED
-  const isTrial = false;
-  const trialRemaining = 999999;
-  const trialLow = false;
+  const isLicensed = license?.status === "active";
+  const isTrial = !license || license.status === "trial";
+  const trialRemaining = Math.max(0, (license?.trialJobsLimit ?? 25) - (license?.trialJobsUsed ?? 0));
+  const trialLow = isTrial && trialRemaining <= 5;
 
   const createQueueMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/queues", {
