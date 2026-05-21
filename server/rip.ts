@@ -51,6 +51,16 @@ export async function ripFile(
     contrast?: number;
     saturation?: number;
     whiteOpacity?: number;
+    tacLimit?: number;       // total area coverage cap (default 320)
+    inkLimitC?: number;      // per-channel limits 0-100
+    inkLimitM?: number;
+    inkLimitY?: number;
+    inkLimitK?: number;
+    inkLimitW?: number;
+    blackEnhancement?: number; // 0-20 boost K channel
+    colorBoost?: number;       // -20 to +20 saturation boost
+    mirrorH?: boolean;
+    mirrorV?: boolean;
     onProgress?: (pct: number) => void;
   }
 ): Promise<RipResult> {
@@ -90,14 +100,20 @@ export async function ripFile(
 
   onProgress(35);
 
-  // ── Step 3: Apply color adjustments ───────────────────────────────────────
+  // ── Step 3: Apply color adjustments + mirror ────────────────────────────────
   const brightness = opts.brightness || 0;
   const contrast = opts.contrast || 0;
   const saturation = opts.saturation || 0;
+  const colorBoost = opts.colorBoost || 0;
+
+  // Apply mirror transforms (DTF: print is mirrored so transfer reads correctly)
+  if (opts.mirrorH) img = img.flop();   // horizontal flip
+  if (opts.mirrorV) img = img.flip();   // vertical flip
 
   // sharp modulate: brightness 1.0 = neutral, saturation 1.0 = neutral
   const brightnessM = 1 + (brightness / 100);
-  const saturationM = 1 + (saturation / 20);   // S scale is 0-20 in our system
+  const totalSat = saturation + colorBoost;
+  const saturationM = 1 + (totalSat / 20);   // S scale is 0-20 in our system
 
   img = img.modulate({
     brightness: Math.max(0.1, brightnessM),
@@ -105,16 +121,10 @@ export async function ripFile(
   });
 
   if (contrast !== 0) {
-    // sharp gamma() accepts 1.0–3.0 only.
-    // Map our -100..+100 contrast range into that window:
-    //   contrast < 0 → darken (gamma > 1, up to 3.0)
-    //   contrast > 0 → brighten/lift shadows (gamma 1.0..1.0, no-op clamp)
-    // We use gamma only for darkening; positive contrast is handled by saturation/modulate.
     if (contrast < 0) {
-      const gamma = 1 + (Math.abs(contrast) / 100) * 2; // maps -100→3.0, -1→1.02
+      const gamma = 1 + (Math.abs(contrast) / 100) * 2;
       img = img.gamma(Math.min(3.0, gamma));
     }
-    // For positive contrast we skip gamma (already clamped to valid sharp range).
   }
 
   onProgress(50);
@@ -180,9 +190,45 @@ export async function ripFile(
     W: Math.round(alphaCoverage * (opts.whiteOpacity ?? 90)),
     total: 0,
   };
-  inkCoverage.total = Math.min(400, inkCoverage.C + inkCoverage.M + inkCoverage.Y + inkCoverage.K + inkCoverage.W);
 
   onProgress(80);
+
+  // ── Step 5b: Apply per-channel ink limits + TAC limiting (DF v12 feature) ────
+  const inkLimits = {
+    C: opts.inkLimitC ?? 100,
+    M: opts.inkLimitM ?? 100,
+    Y: opts.inkLimitY ?? 100,
+    K: opts.inkLimitK ?? 100,
+    W: opts.inkLimitW ?? 90,
+  };
+  const tacCap = opts.tacLimit ?? 320;
+
+  // Apply per-channel limits
+  for (const ch of ["C", "M", "Y", "K", "W"] as const) {
+    inkCoverage[ch] = Math.round(Math.min(inkCoverage[ch], inkLimits[ch]));
+  }
+
+  // Black enhancement — richer blacks (DF v12 Black Boost feature)
+  if (opts.blackEnhancement && opts.blackEnhancement > 0) {
+    inkCoverage.K = Math.min(inkLimits.K, Math.round(inkCoverage.K * (1 + opts.blackEnhancement / 100)));
+  }
+
+  // Enforce TAC limit — reduce CMYK proportionally if over cap
+  const cmykTotal = inkCoverage.C + inkCoverage.M + inkCoverage.Y + inkCoverage.K;
+  const tacWithW = cmykTotal + inkCoverage.W;
+  if (tacWithW > tacCap) {
+    const cmykCap = tacCap - inkCoverage.W;
+    if (cmykTotal > cmykCap && cmykCap > 0) {
+      const ratio = cmykCap / cmykTotal;
+      inkCoverage.C = Math.round(inkCoverage.C * ratio);
+      inkCoverage.M = Math.round(inkCoverage.M * ratio);
+      inkCoverage.Y = Math.round(inkCoverage.Y * ratio);
+      inkCoverage.K = Math.round(inkCoverage.K * ratio);
+    } else if (cmykCap <= 0) {
+      inkCoverage.W = Math.min(inkCoverage.W, tacCap);
+    }
+  }
+  inkCoverage.total = Math.min(400, inkCoverage.C + inkCoverage.M + inkCoverage.Y + inkCoverage.K + inkCoverage.W);
 
   // ── Step 6: Calculate ink cost ────────────────────────────────────────────
   const areaSquareInches = opts.widthInches * opts.heightInches;

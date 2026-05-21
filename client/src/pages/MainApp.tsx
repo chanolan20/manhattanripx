@@ -436,7 +436,7 @@ export default function MainApp() {
           <div className="flex-1 overflow-auto"><SettingsPage onClose={() => setActiveView("queue")} /></div>
         )}
         {activeView === "license" && (
-          <div className="flex-1 overflow-auto"><LicenseScreen onClose={() => setActiveView("queue")} /></div>
+          <div className="flex-1 overflow-auto"><LicenseScreen /></div>
         )}
       </div>
 

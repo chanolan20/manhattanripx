@@ -1,378 +1,350 @@
-import { useQuery } from "@tanstack/react-query";
-import type { IccProfile } from "@shared/schema";
+/**
+ * Manhattan RIP X — Color Management (v2.1 — full DF v12 ICC pipeline)
+ *
+ * Panels:
+ *  - ICC Source Profile
+ *  - ICC Destination Profile
+ *  - Rendering Intent
+ *  - Ink Limits (global — per-mode overrides in PrintModeManager)
+ *  - Soft Proof settings
+ *  - White Channel global settings
+ *  - CMYK Curve adjustments
+ */
+
 import { useState } from "react";
-import { X, Upload, Check, AlertTriangle, Palette, Sliders, Activity, Link2, Layers } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import SpotColorLibrary from "@/components/SpotColorLibrary";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { IccProfile } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 
-interface Props {
-  onClose?: () => void;
-}
+interface Props { onClose?: () => void; }
 
-// ── MRX profile groupings ─────────────────────────────────────────
-const MRX_PROFILES = {
-  "MRX System (RGB)": [
-    "MRX Unified RGB",
-    "MRX gen inkjet",
-    "MRX Image RGB",
-    "MRX RGB Bitmaps",
-    "MRX RGB Line Art",
-    "MRX HexRGB Bitmap",
-    "MRX HexRGB Line Art",
-    "MRX vector RGB",
-    "MRX sRGB",
-    "MRX gen monitor",
-    "MRX gen printer",
-    "CIELab",
-    "eciRGB_v2",
-    "sRGB",
-    "genmon",
-    "monitor",
-    "input",
-  ],
-  "MRX CMYK": [
-    "MRX CMYK",
-    "MRX SWOP",
-    "MRX image CMYK",
-    "MRX vector CMYK",
-    "MRXWideCMYK",
-    "genCMYKPS",
-    "Printer",
-  ],
-  "ISO Press Standards": [
-    "EuroscaleCoated",
-    "ISOcoated_v2_eci",
-    "PSOcoated_v3",
-    "PSOuncoated_v3_FOGRA52",
-    "Standard EURO",
-    "Standard SWOP",
-  ],
-  "Ink Profiles": [
-    "LAB-CMYK.ink",
-    "RGB-CMYK.ink",
-    "SWOP-CMYK.ink",
-  ],
-};
+const RENDERING_INTENTS = [
+  { value: "Perceptual", desc: "Best for photos — maps colors smoothly, may shift hues" },
+  { value: "Relative Colorimetric", desc: "Best for logos — preserves in-gamut colors exactly, clips out-of-gamut" },
+  { value: "Saturation", desc: "Best for bright graphics — maximizes vivid colors" },
+  { value: "Absolute Colorimetric", desc: "Proofing — simulates source device exactly including white point" },
+] as const;
 
-// ── Device-Link profile groupings ──────────────────────────────────────────
-const DEVICE_LINK_GROUPS = {
-  "CMYK Max Ink": [60,65,70,75,80,85,90,95].map(v => ({ name: `DL — CMYK Max Ink ${v}%`, label: `${v}%` })),
-  "MaxInk Reduction": [50,55,60,65,70,75,80,85,90,95].map(v => ({ name: `DL — MaxInk ${v}%`, label: `${v}%` })),
-  "Lighter": [10,20,30,40,50,60,70,80].map(v => ({ name: `DL — Lighter ${v}%`, label: `+${v}%` })),
-  "Darker": [10,20,30,40,50].map(v => ({ name: `DL — Darker ${v}%`, label: `-${v}%` })),
-  "Contrast": [10,20,30,40,50,60,70,80,90,100].map(v => ({ name: `DL — Contrast ${v}%`, label: `${v}%` })),
-  "Saturation": [5,10,15,20,25,30,35,40,45,50].map(v => ({ name: `DL — Saturation ${v}%`, label: `${v}%` })),
-  "Special": [
-    { name: "DL — CleanWhite", label: "CleanWhite" },
-    ...[5,10,15,20,25,30,35,40,45,50].map(v => ({ name: `DL — Linear Ink Reduction ${v}%`, label: `LIR ${v}%` })),
-  ],
-};
+const BUILT_IN_SOURCE_PROFILES = [
+  "sRGB IEC61966-2.1",
+  "Adobe RGB (1998)",
+  "Display P3",
+  "ProPhoto RGB",
+  "CMYK Generic",
+  "U.S. Web Coated (SWOP) v2",
+];
 
-// ── ColorTune profile groups ───────────────────────────────────────────
-const ECA_GROUPS = {
-  "Brightness (Darker)": Array.from({ length: 20 }, (_, i) => ({ name: `CT-B-${20 - i}`, label: `B-${20 - i}` })),
-  "Brightness (Brighter)": Array.from({ length: 20 }, (_, i) => ({ name: `CT-B${i + 1}`, label: `B${i + 1}` })),
-  "Saturation": Array.from({ length: 20 }, (_, i) => ({ name: `CT-S${i + 1}`, label: `S${i + 1}` })),
-  "MaxInk": Array.from({ length: 30 }, (_, i) => ({ name: `CT-M${100 + i * 10}`, label: `M${100 + i * 10}` })),
-};
+const BUILT_IN_DEST_PROFILES = [
+  "MRX Unified RGB",
+  "CADlink Unified RGB",
+  "DL — Photo 8Color DTF",
+  "DL — CMYW Forever Dark Transfer",
+  "Epson ET-8550 DTF v2.1",
+  "Generic CMYK",
+];
 
 export default function ColorManagement({ onClose }: Props) {
-  const { data: profiles = [] } = useQuery<IccProfile[]>({ queryKey: ["/api/icc-profiles"] });
-  const [selectedProfile, setSelectedProfile] = useState("MRX Unified RGB");
-  const [renderingIntent, setRenderingIntent] = useState("Perceptual");
-  const [selectedDL, setSelectedDL] = useState("DL — Saturation 15%");
-  const [selectedECA, setSelectedECA] = useState("CT-B5");
-  const [blackPointComp, setBlackPointComp] = useState(true);
-  const [gamutWarning, setGamutWarning] = useState(false);
-  const [spotColorMode, setSpotColorMode] = useState("Simulate");
-  const [manageSpotDevices, setManageSpotDevices] = useState(false);
+  const { toast } = useToast();
 
-  const GAMUT_STATS = [
-    { label: "sRGB Coverage", value: 92, color: "hsl(199 89% 48%)" },
-    { label: "Adobe RGB Coverage", value: 78, color: "hsl(145 60% 40%)" },
-    { label: "P3 Coverage", value: 71, color: "hsl(40 90% 50%)" },
-    { label: "CMYK (PSO Coated v3)", value: 96, color: "hsl(280 60% 55%)" },
+  // ── Global color settings pulled from /api/settings ──────────────────────
+  const { data: settings } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+    queryFn: () => apiRequest("GET", "/api/settings").then(r => r.json()),
+  });
+
+  const { data: profiles = [] } = useQuery<IccProfile[]>({
+    queryKey: ["/api/icc-profiles"],
+    queryFn: () => apiRequest("GET", "/api/icc-profiles").then(r => r.json()),
+  });
+
+  const saveSettings = useMutation({
+    mutationFn: (data: Record<string, string>) => apiRequest("PATCH", "/api/settings", data).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({ title: "Color settings saved" });
+    },
+  });
+
+  const [local, setLocal] = useState<Record<string, string>>({});
+  const merged = { ...settings, ...local };
+
+  const set = (key: string, val: string) => setLocal(p => ({ ...p, [key]: val }));
+  const getNum = (key: string, def: number) => Number(merged[key] ?? def);
+  const getStr = (key: string, def: string) => merged[key] ?? def;
+
+  const allProfiles = [
+    ...BUILT_IN_DEST_PROFILES,
+    ...profiles.map(p => p.name).filter(n => !BUILT_IN_DEST_PROFILES.includes(n)),
   ];
 
-  // group profiles from the DB
-  const dbProfilesByGroup: Record<string, IccProfile[]> = {};
-  for (const [grpName, names] of Object.entries(MRX_PROFILES)) {
-    dbProfilesByGroup[grpName] = profiles.filter(p => names.includes(p.name));
-  }
+  const [activeTab, setActiveTab] = useState<"icc" | "curves" | "white" | "softproof">("icc");
+
+  const handleSave = () => saveSettings.mutate(local);
+
+  const CurveChannel = ({ ch, color }: { ch: "C" | "M" | "Y" | "K"; color: string }) => {
+    const shadow  = getNum(`curve_${ch}_shadow`, 0);
+    const midtone = getNum(`curve_${ch}_midtone`, 0);
+    const high    = getNum(`curve_${ch}_highlight`, 0);
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-3.5 h-3.5 rounded-sm" style={{ backgroundColor: color }} />
+          <span className="text-[10px] font-semibold text-foreground">{ch}</span>
+        </div>
+        {[
+          { label: "Shadow",    key: `curve_${ch}_shadow`,    val: shadow },
+          { label: "Midtone",   key: `curve_${ch}_midtone`,   val: midtone },
+          { label: "Highlight", key: `curve_${ch}_highlight`, val: high },
+        ].map(({ label, key, val }) => (
+          <div key={key} className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground w-14">{label}</span>
+            <Slider value={[val]} onValueChange={([v]) => set(key, String(v))}
+              min={-50} max={50} step={1} className="flex-1" />
+            <span className={`text-[9px] font-mono w-7 text-right ${val > 0 ? "text-green-400" : val < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+              {val > 0 ? "+" : ""}{val}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
-    <div className="flex flex-col" data-testid="color-management">
+    <div className="flex flex-col bg-card" style={{ minHeight: 480 }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Color Management</h2>
-          <p className="text-[10px] text-muted-foreground">Manhattan RIP X — MRX Color Engine</p>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/30 shrink-0">
+        <span className="text-[13px] font-semibold text-foreground">Color Management</span>
+        <div className="flex items-center gap-2">
+          <Button size="sm" className="h-6 text-[10px] px-3" onClick={handleSave} disabled={Object.keys(local).length === 0 || saveSettings.isPending}>
+            {saveSettings.isPending ? "Saving…" : "Save"}
+          </Button>
+          {onClose && <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={onClose}>✕</Button>}
         </div>
-        {onClose && (
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted/60 text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
-          </button>
-        )}
       </div>
 
-      <Tabs defaultValue="profiles" className="flex-1">
-        <TabsList className="mx-4 mt-3 grid grid-cols-5 bg-muted/40">
-          <TabsTrigger value="profiles" className="text-xs">ICC Profiles</TabsTrigger>
-          <TabsTrigger value="devicelinks" className="text-xs">Device-Links</TabsTrigger>
-          <TabsTrigger value="colortune" className="text-xs">Color Tune</TabsTrigger>
-          <TabsTrigger value="spot" className="text-xs">Spot Color</TabsTrigger>
-          <TabsTrigger value="gamut" className="text-xs">Gamut</TabsTrigger>
-        </TabsList>
+      {/* Tab bar */}
+      <div className="flex items-center border-b border-border px-3 bg-muted/10 shrink-0">
+        {[
+          { id: "icc",       label: "ICC Profiles" },
+          { id: "curves",    label: "Channel Curves" },
+          { id: "white",     label: "White Channel" },
+          { id: "softproof", label: "Soft Proof" },
+        ].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id as any)}
+            className={`px-4 h-8 text-[11px] border-b-2 transition-colors ${
+              activeTab === t.id ? "border-primary text-primary font-semibold" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        {/* ── ICC Profiles ── */}
-        <TabsContent value="profiles" className="p-4 space-y-4 m-0">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Profile browser */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Source Profile
-              </label>
-              <div className="bg-muted/20 border border-border rounded max-h-72 overflow-auto">
-                {Object.entries(MRX_PROFILES).map(([grp, names]) => (
-                  <div key={grp}>
-                    <div className="px-2 py-1 bg-muted/40 text-[9px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
-                      {grp}
+      <div className="flex-1 overflow-auto p-4">
+
+        {/* ── ICC Profiles tab ─────────────────────────────────────────── */}
+        {activeTab === "icc" && (
+          <div className="space-y-5">
+            {/* Source profile */}
+            <Section title="Source Profile (Input)">
+              <p className="text-[10px] text-muted-foreground/70 mb-2">
+                The color space of your incoming artwork file.
+              </p>
+              <Row label="Source Profile">
+                <select value={getStr("icc_source_profile", "sRGB IEC61966-2.1")}
+                  onChange={e => set("icc_source_profile", e.target.value)}
+                  className="flex-1 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                  {BUILT_IN_SOURCE_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
+                  {profiles.filter(p => p.colorSpace !== "output").map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </Row>
+            </Section>
+
+            {/* Destination profile */}
+            <Section title="Destination Profile (Output / Printer)">
+              <p className="text-[10px] text-muted-foreground/70 mb-2">
+                The ICC profile that describes your printer+ink+media combination.
+              </p>
+              <Row label="Destination Profile">
+                <select value={getStr("icc_dest_profile", "MRX Unified RGB")}
+                  onChange={e => set("icc_dest_profile", e.target.value)}
+                  className="flex-1 h-[22px] text-[10px] bg-muted/60 border border-border rounded-sm px-1.5 text-foreground">
+                  {allProfiles.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </Row>
+            </Section>
+
+            {/* Rendering intent */}
+            <Section title="Rendering Intent">
+              <div className="space-y-1.5">
+                {RENDERING_INTENTS.map(ri => (
+                  <label key={ri.value}
+                    className={`flex items-start gap-2 p-2 rounded-sm border cursor-pointer transition-colors ${
+                      getStr("rendering_intent", "Perceptual") === ri.value
+                        ? "border-primary/50 bg-primary/5"
+                        : "border-border/40 hover:border-border"
+                    }`}>
+                    <input type="radio"
+                      checked={getStr("rendering_intent", "Perceptual") === ri.value}
+                      onChange={() => set("rendering_intent", ri.value)}
+                      className="mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-[11px] font-medium text-foreground">{ri.value}</span>
+                      <p className="text-[9px] text-muted-foreground/70 mt-0.5">{ri.desc}</p>
                     </div>
-                    {names.map(name => (
-                      <button
-                        key={name}
-                        onClick={() => setSelectedProfile(name)}
-                        className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors border-b border-border/20 ${
-                          selectedProfile === name
-                            ? "bg-primary/15 text-primary"
-                            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                        }`}
-                      >
-                        {selectedProfile === name && <Check className="w-2.5 h-2.5 shrink-0" />}
-                        <span className={selectedProfile === name ? "" : "ml-4"}>{name}</span>
-                      </button>
-                    ))}
+                  </label>
+                ))}
+              </div>
+            </Section>
+
+            {/* Available profiles list */}
+            <Section title="Installed ICC Profiles">
+              <div className="border border-border rounded-sm overflow-hidden">
+                {profiles.map((p, i) => (
+                  <div key={p.id} className={`flex items-center gap-2 px-3 py-1.5 text-[10px] ${i % 2 === 0 ? "bg-muted/20" : "bg-transparent"}`}>
+                    <span className="w-16 text-muted-foreground/60 font-mono text-[9px]">{p.colorSpace}</span>
+                    <span className="flex-1 text-foreground truncate">{p.name}</span>
+                    {p.isBuiltIn && <span className="text-[8px] text-primary/60 border border-primary/30 px-1 rounded">Built-in</span>}
                   </div>
                 ))}
-                <button className="w-full text-left px-3 py-1.5 rounded text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground flex items-center gap-2 border-t border-dashed border-border mt-1">
-                  <Upload className="w-3 h-3" />
-                  Import ICC/ICM Profile...
-                </button>
               </div>
-            </div>
-
-            {/* Rendering settings */}
-            <div className="space-y-3">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Rendering Settings
-              </label>
-
-              <div className="bg-muted/20 border border-border rounded p-3 space-y-1">
-                <p className="text-[10px] text-muted-foreground">Selected Profile</p>
-                <p className="text-xs font-semibold text-primary">{selectedProfile}</p>
-              </div>
-
-              <div>
-                <label className="text-[10px] text-muted-foreground block mb-1">Rendering Intent</label>
-                <Select value={renderingIntent} onValueChange={setRenderingIntent}>
-                  <SelectTrigger className="h-7 text-xs bg-muted/40 border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["Perceptual", "Relative Colorimetric", "Saturation", "Absolute Colorimetric"].map(i => (
-                      <SelectItem key={i} value={i} className="text-xs">{i}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[9px] text-muted-foreground/60 mt-1">
-                  {renderingIntent === "Perceptual" ? "Best for photos — compresses entire gamut proportionally" :
-                   renderingIntent === "Relative Colorimetric" ? "Preserves in-gamut colors, clips out-of-gamut values" :
-                   renderingIntent === "Saturation" ? "Maximizes vividness — ideal for DTF graphics" :
-                   "Absolute color values — calibration and proofing only"}
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] text-muted-foreground">Black Point Compensation</span>
-                  <p className="text-[9px] text-muted-foreground/60">Preserves shadow detail across profiles</p>
-                </div>
-                <Switch checked={blackPointComp} onCheckedChange={setBlackPointComp} />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[11px] text-muted-foreground">Gamut Warning Overlay</span>
-                  <p className="text-[9px] text-muted-foreground/60">Highlight out-of-gamut colors in preview</p>
-                </div>
-                <Switch checked={gamutWarning} onCheckedChange={setGamutWarning} />
-              </div>
-
-              <div className="bg-blue-900/20 border border-blue-800/30 rounded p-2 space-y-1">
-                <p className="text-[10px] font-semibold text-blue-400">Supported File Types</p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {["PSD", "PNG", "JPEG", "TIFF", "PDF", "SVG", "AI"].map(f => (
-                    <Badge key={f} variant="outline" className="text-[9px] h-4 px-1.5 border-blue-700/50 text-blue-300">{f}</Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
+            </Section>
           </div>
-        </TabsContent>
+        )}
 
-        {/* ── Device-Link Profiles ── */}
-        <TabsContent value="devicelinks" className="p-4 m-0">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Link2 className="w-3.5 h-3.5 text-primary" />
-              <p className="text-[11px] font-semibold text-foreground">Device-Link Profiles</p>
-              <span className="text-[9px] text-muted-foreground ml-1">— applied after source → output ICC conversion</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 max-h-[420px] overflow-auto">
-              {Object.entries(DEVICE_LINK_GROUPS).map(([grp, entries]) => (
-                <div key={grp} className="bg-muted/20 border border-border rounded p-2">
-                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">{grp}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {entries.map(e => (
-                      <button
-                        key={e.name}
-                        onClick={() => setSelectedDL(e.name)}
-                        className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
-                          selectedDL === e.name
-                            ? "bg-primary/20 border-primary/40 text-primary"
-                            : "border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {e.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {selectedDL && (
-              <div className="bg-primary/10 border border-primary/30 rounded p-2 flex items-center gap-2">
-                <Check className="w-3 h-3 text-primary shrink-0" />
-                <div>
-                  <p className="text-[11px] font-semibold text-primary">{selectedDL}</p>
-                  <p className="text-[9px] text-muted-foreground">Active Device-Link profile — applied to all jobs in this queue</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* ── Color Tuneustments ── */}
-        <TabsContent value="colortune" className="p-4 m-0">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Sliders className="w-3.5 h-3.5 text-primary" />
-              <p className="text-[11px] font-semibold text-foreground">Color Tuneustments</p>
-              <span className="text-[9px] text-muted-foreground ml-1">— MRX ColorTune profile system</span>
-            </div>
-
-            {Object.entries(ECA_GROUPS).map(([grp, entries]) => (
-              <div key={grp} className="bg-muted/20 border border-border rounded p-2">
-                <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">{grp}</p>
-                <div className="flex flex-wrap gap-1 max-h-20 overflow-auto">
-                  {entries.map(e => (
-                    <button
-                      key={e.name}
-                      onClick={() => setSelectedECA(e.name)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
-                        selectedECA === e.name
-                          ? "bg-primary/20 border-primary/40 text-primary"
-                          : "border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {e.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {selectedECA && (
-              <div className="bg-primary/10 border border-primary/30 rounded p-2 flex items-center gap-2">
-                <Check className="w-3 h-3 text-primary shrink-0" />
-                <div>
-                  <p className="text-[11px] font-semibold text-primary">{selectedECA}</p>
-                  <p className="text-[9px] text-muted-foreground">Active ColorTune profile</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* ── Spot Color (full library) ── */}
-        <TabsContent value="spot" className="p-0 m-0" style={{ height: 440 }}>
-          <SpotColorLibrary />
-        </TabsContent>
-
-        {/* ── Gamut ── */}
-        <TabsContent value="gamut" className="p-4 m-0">
+        {/* ── Channel Curves tab ───────────────────────────────────────── */}
+        {activeTab === "curves" && (
           <div className="space-y-4">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Printer Gamut Coverage</p>
-            <div className="space-y-3">
-              {GAMUT_STATS.map(s => (
-                <div key={s.label}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[11px] text-muted-foreground">{s.label}</span>
-                    <span className="text-[11px] mono font-semibold text-foreground">{s.value}%</span>
-                  </div>
-                  <div className="bg-muted rounded-full h-2">
-                    <div className="h-2 rounded-full transition-all" style={{ width: `${s.value}%`, backgroundColor: s.color }} />
-                  </div>
-                </div>
-              ))}
+            <p className="text-[10px] text-muted-foreground/70">
+              Per-channel shadow/midtone/highlight adjustments applied globally during RIP.
+              These are additive — job-level Easy Color Adjustments stack on top.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <CurveChannel ch="C" color="#00aeef" />
+              <CurveChannel ch="M" color="#ec008c" />
+              <CurveChannel ch="Y" color="#ffd700" />
+              <CurveChannel ch="K" color="#666" />
             </div>
-
-            <div className="bg-muted/30 border border-border rounded p-3">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Manhattan RIP X Color Engine — ET-8550 DTF</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  ["Engine", "Manhattan RIP X"],
-                  ["Profiling", "ICC/ICM Device-Link"],
-                  ["Delta E Method", "CIEDE2000"],
-                  ["Total Ink Limit", "290% (DTF)"],
-                  ["Underbase", "CMYW White Ink"],
-                  ["ColorTune", "CT Profiles"],
-                ].map(([k, v]) => (
-                  <div key={k}>
-                    <p className="text-[9px] text-muted-foreground">{k}</p>
-                    <p className="text-[11px] font-medium text-foreground">{v}</p>
+            {/* Master curves */}
+            <Section title="Master Adjustments">
+              {[
+                { label: "Global Brightness", key: "global_brightness", def: 0 },
+                { label: "Global Contrast",   key: "global_contrast",   def: 0 },
+                { label: "Global Saturation", key: "global_saturation", def: 0 },
+              ].map(({ label, key, def }) => {
+                const v = getNum(key, def);
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="text-[10px] text-muted-foreground w-32">{label}</span>
+                    <Slider value={[v]} onValueChange={([n]) => set(key, String(n))} min={-50} max={50} step={1} className="flex-1" />
+                    <span className={`text-[10px] font-mono w-7 text-right ${v > 0 ? "text-green-400" : v < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                      {v > 0 ? "+" : ""}{v}
+                    </span>
+                    {v !== 0 && (
+                      <button onClick={() => set(key, "0")} className="text-[9px] text-muted-foreground/60 hover:text-muted-foreground">↺</button>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-muted/30 border border-border rounded p-3">
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Calibration Status</p>
-              <div className="flex items-center gap-2 mb-2">
-                <Check className="w-3.5 h-3.5 text-green-400" />
-                <span className="text-[11px] text-green-400">Calibrated — Today 2:34 PM</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {["Density","Linearization","Registration"].map((step, i) => (
-                  <div key={step} className="bg-muted/40 border border-border rounded p-2 text-center">
-                    <div className={`w-5 h-5 rounded-full mx-auto mb-1 flex items-center justify-center text-[9px] font-bold ${
-                      i < 2 ? "bg-green-900/40 text-green-400 border border-green-700/50" : "bg-muted border border-border text-muted-foreground"
-                    }`}>{i < 2 ? "✓" : i + 1}</div>
-                    <p className="text-[10px] font-medium text-foreground">{step}</p>
-                    <p className="text-[9px] text-muted-foreground">{i < 2 ? "Complete" : "Optional"}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+                );
+              })}
+            </Section>
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+
+        {/* ── White Channel tab ────────────────────────────────────────── */}
+        {activeTab === "white" && (
+          <div className="space-y-5">
+            <p className="text-[10px] text-muted-foreground/70">
+              Global white channel settings for DTF printing. Per-job overrides are available in the SmartBar.
+            </p>
+            <Section title="White Underbase">
+              {[
+                { label: "White Opacity (global)", key: "white_opacity_global", def: 90, min: 0, max: 100 },
+                { label: "White Choke (px)",       key: "white_choke_global",   def: 3,  min: 0, max: 20 },
+              ].map(({ label, key, def, min, max }) => {
+                const v = getNum(key, def);
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="text-[10px] text-muted-foreground w-40">{label}</span>
+                    <Slider value={[v]} onValueChange={([n]) => set(key, String(n))} min={min} max={max} step={1} className="flex-1" />
+                    <input type="number" value={v} min={min} max={max}
+                      onChange={e => set(key, e.target.value)}
+                      className="w-12 h-5 text-[10px] font-mono text-center bg-muted/60 border border-border rounded-sm text-foreground" />
+                  </div>
+                );
+              })}
+            </Section>
+            <Section title="White Pass Options">
+              {[
+                { label: "White Flood Pass",      key: "white_flood",   def: "0" },
+                { label: "White Detail Mode",      key: "white_detail",  def: "1" },
+                { label: "Remove White Haze",      key: "white_no_haze", def: "0" },
+              ].map(({ label, key, def }) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={getStr(key, def) === "1"}
+                    onChange={e => set(key, e.target.checked ? "1" : "0")} className="w-3 h-3" />
+                  <span className="text-[11px] text-muted-foreground">{label}</span>
+                </label>
+              ))}
+            </Section>
+          </div>
+        )}
+
+        {/* ── Soft Proof tab ───────────────────────────────────────────── */}
+        {activeTab === "softproof" && (
+          <div className="space-y-5">
+            <p className="text-[10px] text-muted-foreground/70">
+              Soft proofing simulates how the print will look on the substrate.
+              Enables gamut warning (out-of-gamut colors shown as overlay).
+            </p>
+            <Section title="Soft Proof Settings">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={getStr("softproof_enabled", "0") === "1"}
+                  onChange={e => set("softproof_enabled", e.target.checked ? "1" : "0")} className="w-3 h-3" />
+                <span className="text-[11px] text-muted-foreground">Enable soft proofing in preview</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={getStr("gamut_warning", "0") === "1"}
+                  onChange={e => set("gamut_warning", e.target.checked ? "1" : "0")} className="w-3 h-3" />
+                <span className="text-[11px] text-muted-foreground">Show gamut warning (out-of-gamut overlay)</span>
+              </label>
+              <Row label="Gamut Warning Color">
+                <input type="color" value={getStr("gamut_warning_color", "#ff00ff")}
+                  onChange={e => set("gamut_warning_color", e.target.value)}
+                  className="w-8 h-6 border border-border rounded cursor-pointer bg-transparent" />
+                <span className="text-[10px] text-muted-foreground font-mono">{getStr("gamut_warning_color", "#ff00ff")}</span>
+              </Row>
+              <Row label="Simulate Substrate Color">
+                <input type="color" value={getStr("substrate_simulate_color", "#ffffff")}
+                  onChange={e => set("substrate_simulate_color", e.target.value)}
+                  className="w-8 h-6 border border-border rounded cursor-pointer bg-transparent" />
+                <span className="text-[10px] text-muted-foreground font-mono">{getStr("substrate_simulate_color", "#ffffff")}</span>
+              </Row>
+            </Section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 pb-1 border-b border-border/40">{title}</div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-[10px] text-muted-foreground w-36 shrink-0">{label}</span>
+      <div className="flex-1 flex items-center gap-2">{children}</div>
     </div>
   );
 }

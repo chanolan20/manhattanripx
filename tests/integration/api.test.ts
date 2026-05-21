@@ -419,18 +419,24 @@ describe("Settings API", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// License
+// License — FULLY UNLOCKED (Pro Perpetual, no trial gate)
 // ═══════════════════════════════════════════════════════════════════════════════
 describe("License API", () => {
-  it("GET /api/license returns trial license", async () => {
-    await request.post("/api/license/deactivate"); // ensure clean state
+  it("GET /api/license returns active pro license (fully unlocked)", async () => {
     const res = await request.get("/api/license");
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("trial");
-    expect(res.body.trialJobsLimit).toBe(25);
+    expect(res.body.status).toBe("active");
+    expect(res.body.plan).toBe("pro");
   });
 
-  it("POST /api/license/activate with valid MRXP key succeeds", async () => {
+  it("GET /api/license has unlocked trialJobsLimit", async () => {
+    const res = await request.get("/api/license");
+    expect(res.status).toBe(200);
+    // Fully unlocked — limit is effectively unlimited (999999)
+    expect(res.body.trialJobsLimit).toBeGreaterThanOrEqual(999);
+  });
+
+  it("POST /api/license/activate always returns active pro (any key or no key)", async () => {
     const res = await request.post("/api/license/activate").send({
       licenseKey: "MRXP-ABCD-1234-5678",
       email: "test@example.com",
@@ -439,58 +445,49 @@ describe("License API", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.license.status).toBe("active");
     expect(res.body.license.plan).toBe("pro");
-    expect(res.body.license.licenseKey).toBe("MRXP-ABCD-1234-5678");
-    expect(res.body.license.email).toBe("test@example.com");
   });
 
-  it("GET /api/license after activation returns active status", async () => {
-    const res = await request.get("/api/license");
+  it("POST /api/license/activate without a key still returns 200 active", async () => {
+    const res = await request.post("/api/license/activate").send({});
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("active");
-    expect(res.body.plan).toBe("pro");
+    expect(res.body.success).toBe(true);
+    expect(res.body.license.status).toBe("active");
   });
 
-  it("POST /api/license/activate with MRXE key sets enterprise plan", async () => {
-    const res = await request.post("/api/license/activate").send({
-      licenseKey: "MRXE-ENTR-XXXX-9999",
-    });
-    expect(res.status).toBe(200);
-    expect(res.body.license.plan).toBe("enterprise");
-  });
-
-  it("POST /api/license/activate with invalid short key returns 400", async () => {
+  it("POST /api/license/activate with short key still returns 200 active", async () => {
     const res = await request.post("/api/license/activate").send({
       licenseKey: "TOOSHORT",
     });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBeDefined();
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.license.status).toBe("active");
   });
 
-  it("POST /api/license/activate without licenseKey returns 400", async () => {
-    const res = await request.post("/api/license/activate").send({});
-    expect(res.status).toBe(400);
-  });
-
-  it("POST /api/license/deactivate reverts to trial", async () => {
+  it("POST /api/license/deactivate is a no-op — still returns active", async () => {
     const res = await request.post("/api/license/deactivate");
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.license.status).toBe("trial");
+    expect(res.body.license.status).toBe("active");
   });
 
-  it("GET /api/license after deactivation returns trial", async () => {
+  it("GET /api/license after deactivate still returns active (fully unlocked)", async () => {
+    await request.post("/api/license/deactivate");
     const res = await request.get("/api/license");
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("trial");
+    expect(res.body.status).toBe("active");
   });
 
-  it("activatedAt is a valid ISO date string when active", async () => {
-    await request.post("/api/license/activate").send({ licenseKey: "MRXP-XXXX-YYYY-ZZZZ" });
+  it("activatedAt is a valid ISO date string", async () => {
     const res = await request.get("/api/license");
-    if (res.body.status === "active") {
-      expect(new Date(res.body.activatedAt).getTime()).not.toBeNaN();
-    }
-    await request.post("/api/license/deactivate");
+    expect(res.status).toBe(200);
+    expect(new Date(res.body.activatedAt).getTime()).not.toBeNaN();
+  });
+
+  it("licenseKey is present in license object", async () => {
+    const res = await request.get("/api/license");
+    expect(res.status).toBe(200);
+    expect(typeof res.body.licenseKey).toBe("string");
+    expect(res.body.licenseKey.length).toBeGreaterThan(0);
   });
 });
 
@@ -535,18 +532,11 @@ describe("POST /api/jobs/:id/print", () => {
     await request.patch(`/api/jobs/${job.id}`).send({ status: "pending", ripProgress: 0 });
   });
 
-  it("blocks printing when trial limit is reached", async () => {
-    // Set trial jobs used to limit
-    const lic = await request.get("/api/license");
-    const limit = lic.body.trialJobsLimit || 25;
-
-    // Force trial jobs used to limit
-    // (We patch the setting by deactivating and accepting the existing seed)
-    // Since we can't directly set trialJobsUsed via API, we verify the route logic
-    // by checking the 402 response structure exists
-    // This is a contract test — real exhaustion would require 25 print calls
+  it("print on nonexistent job returns 404 (no trial gate — fully unlocked)", async () => {
+    // App is fully unlocked — no trial limit blocks printing.
+    // A nonexistent job still returns 404 (not 402).
     const res = await request.post("/api/jobs/99999/print");
-    expect([404, 402]).toContain(res.status);
+    expect(res.status).toBe(404);
   });
 });
 

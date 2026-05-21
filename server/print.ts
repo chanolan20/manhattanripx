@@ -1,22 +1,30 @@
 /**
- * Manhattan RIP X — IPP/CUPS Print Module
- * Sends jobs to the printer via IPP protocol (node-ipp)
- * Falls back to CUPS lp command if node-ipp unavailable
+ * Manhattan RIP X — IPP/CUPS/Windows Print Module
+ * Sends jobs to the printer via IPP protocol (node-ipp) on macOS/Linux,
+ * or via the Windows Printer Driver Bridge on win32.
+ * Falls back to CUPS lp command if node-ipp is unavailable.
  */
 
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
 import path from "path";
+import {
+  listWindowsPrinters,
+  submitWindowsPrintJob,
+  getWindowsPrinterStatus,
+} from "./windowsPrinter";
 
 const execAsync = promisify(exec);
+
+// ── Shared types (exported so windowsPrinter.ts can import them) ──────────────
 
 export interface PrintJobOptions {
   jobName: string;
   filePath: string;
   copies?: number;
   printerUri?: string;       // ipp://localhost/printers/EPSON_ET-8550
-  printerName?: string;      // CUPS printer name
+  printerName?: string;      // CUPS printer name (macOS/Linux) or Windows printer name
   duplexMode?: "one-sided" | "two-sided-long-edge";
   colorMode?: "color" | "monochrome";
   mediaSize?: string;        // "custom_13x19in_13x19in"
@@ -36,8 +44,15 @@ export interface PrinterInfo {
   isDefault: boolean;
 }
 
-// ── Detect available printers via CUPS lpstat ─────────────────────────────────
+// ── List printers ─────────────────────────────────────────────────────────────
+
 export async function listPrinters(): Promise<PrinterInfo[]> {
+  // Windows: delegate entirely to the Windows driver bridge
+  if (process.platform === "win32") {
+    return listWindowsPrinters();
+  }
+
+  // macOS / Linux: CUPS lpstat
   try {
     const { stdout } = await execAsync("lpstat -p 2>/dev/null || echo 'NO_CUPS'");
     if (stdout.includes("NO_CUPS") || stdout.trim() === "") {
@@ -76,20 +91,37 @@ export async function listPrinters(): Promise<PrinterInfo[]> {
 
 function getSimulatedPrinters(): PrinterInfo[] {
   return [
-    { name: "Epson_ET-8550_DTF", uri: "ipp://localhost:631/printers/Epson_ET-8550_DTF", status: "online", isDefault: true },
-    { name: "Epson_ET-8550_Series", uri: "ipp://192.168.1.100:631/printers/EPSON_ET-8550_Series", status: "online", isDefault: false },
+    {
+      name: "Epson_ET-8550_DTF",
+      uri: "ipp://localhost:631/printers/Epson_ET-8550_DTF",
+      status: "online",
+      isDefault: true,
+    },
+    {
+      name: "Epson_ET-8550_Series",
+      uri: "ipp://192.168.1.100:631/printers/EPSON_ET-8550_Series",
+      status: "online",
+      isDefault: false,
+    },
   ];
 }
 
 // ── Submit print job ──────────────────────────────────────────────────────────
-export async function submitPrintJob(opts: PrintJobOptions): Promise<PrintJobResult> {
-  const { jobName, filePath, copies = 1, printerName, printerUri } = opts;
 
-  // Verify file exists
+export async function submitPrintJob(opts: PrintJobOptions): Promise<PrintJobResult> {
+  const { jobName, filePath, copies = 1, printerName } = opts;
+
+  // Verify file exists (shared guard for all platforms)
   if (!fs.existsSync(filePath)) {
     return { success: false, message: `File not found: ${filePath}` };
   }
 
+  // Windows: delegate entirely to the Windows driver bridge
+  if (process.platform === "win32") {
+    return submitWindowsPrintJob(opts);
+  }
+
+  // macOS / Linux: CUPS → IPP → simulate
   const targetPrinter = printerName || "Epson_ET-8550_DTF";
 
   // Try CUPS lp command first (most reliable on macOS/Linux)
@@ -122,7 +154,7 @@ async function submitViaCUPS(
   await execAsync("which lp");
   const safeJobName = jobName.replace(/[^a-zA-Z0-9_\-\.]/g, "_").slice(0, 50);
   const cmd = `lp -d "${printerName}" -n ${copies} -t "${safeJobName}" "${filePath}"`;
-  const { stdout, stderr } = await execAsync(cmd);
+  const { stdout } = await execAsync(cmd);
   const jobMatch = stdout.match(/request id is (\S+)/i);
   const jobId = jobMatch ? jobMatch[1] : `cups-${Date.now()}`;
   return {
@@ -142,7 +174,9 @@ async function submitViaIPP(opts: PrintJobOptions): Promise<PrintJobResult> {
     throw new Error("node-ipp not available");
   }
 
-  const printerUri = opts.printerUri || `ipp://localhost:631/printers/${opts.printerName || "Epson_ET-8550_DTF"}`;
+  const printerUri =
+    opts.printerUri ||
+    `ipp://localhost:631/printers/${opts.printerName || "Epson_ET-8550_DTF"}`;
   const fileData = fs.readFileSync(opts.filePath);
 
   return new Promise((resolve) => {
@@ -152,7 +186,7 @@ async function submitViaIPP(opts: PrintJobOptions): Promise<PrintJobResult> {
         "requesting-user-name": "ManhattanRIPX",
         "job-name": opts.jobName,
         "document-format": "image/png",
-        "copies": opts.copies || 1,
+        copies: opts.copies || 1,
       },
       data: fileData,
     };
@@ -161,7 +195,8 @@ async function submitViaIPP(opts: PrintJobOptions): Promise<PrintJobResult> {
         resolve({ success: false, message: `IPP error: ${err.message}` });
         return;
       }
-      const status = res?.["operation-attributes-tag"]?.["status-message"]?.value || "ok";
+      const status =
+        res?.["operation-attributes-tag"]?.["status-message"]?.value || "ok";
       const jobId = res?.["job-attributes-tag"]?.["job-id"]?.value;
       resolve({
         success: status === "successful-ok" || res?.version,
@@ -175,7 +210,9 @@ async function submitViaIPP(opts: PrintJobOptions): Promise<PrintJobResult> {
 
 function simulatePrintJob(jobName: string, printerName: string): PrintJobResult {
   const jobId = `sim-${Date.now()}`;
-  console.log(`[PRINT] SIMULATED — job "${jobName}" → printer "${printerName}", id: ${jobId}`);
+  console.log(
+    `[PRINT] SIMULATED — job "${jobName}" → printer "${printerName}", id: ${jobId}`
+  );
   return {
     success: true,
     jobId,
@@ -185,13 +222,28 @@ function simulatePrintJob(jobName: string, printerName: string): PrintJobResult 
 }
 
 // ── Get printer status ────────────────────────────────────────────────────────
-export async function getPrinterStatus(printerName: string): Promise<{ status: string; jobCount: number }> {
+
+export async function getPrinterStatus(
+  printerName: string
+): Promise<{ status: string; jobCount: number }> {
+  // Windows: delegate to the Windows driver bridge
+  if (process.platform === "win32") {
+    return getWindowsPrinterStatus(printerName);
+  }
+
+  // macOS / Linux: CUPS lpstat + lpq
   try {
     const { stdout } = await execAsync(`lpstat -p "${printerName}" 2>/dev/null`);
     const isEnabled = stdout.includes("enabled");
-    const isIdle = stdout.includes("idle");
-    const isBusy = stdout.includes("now printing");
-    const status = isBusy ? "printing" : isIdle ? "idle" : isEnabled ? "online" : "offline";
+    const isIdle    = stdout.includes("idle");
+    const isBusy    = stdout.includes("now printing");
+    const status    = isBusy
+      ? "printing"
+      : isIdle
+      ? "idle"
+      : isEnabled
+      ? "online"
+      : "offline";
 
     // Count jobs
     let jobCount = 0;

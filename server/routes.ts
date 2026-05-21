@@ -228,13 +228,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const job = storage.getJob(jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    // Check license / trial limit
-    const lic = storage.getLicense();
-    if (lic && lic.status === "trial") {
-      if ((lic.trialJobsUsed || 0) >= (lic.trialJobsLimit || 25)) {
-        return res.status(402).json({ error: "Trial limit reached. Please activate a license to continue printing." });
-      }
-    }
+    // FULLY UNLOCKED — no trial limits
 
     storage.updateJob(jobId, { status: "processing", ripProgress: 0 });
 
@@ -252,9 +246,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     if (result.success) {
       storage.updateJob(jobId, { status: "printing", ripProgress: 100 });
-      if (lic && lic.status === "trial") {
-        storage.incrementTrialJobs();
-      }
+
       res.json({ ...result, job: storage.getJob(jobId) });
     } else {
       // Still mark as printing for demo purposes
@@ -300,56 +292,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ key: req.params.key, value: String(value) });
   });
 
-  // ── License ──────────────────────────────────────────────────────────────────
+  // ── License (FULLY UNLOCKED — no key required, all features active) ─────────
+  const UNLOCKED_LICENSE = {
+    status: "active",
+    plan: "pro",
+    licenseKey: "MRX-UNLOCKED",
+    email: null,
+    activatedAt: new Date().toISOString(),
+    expiresAt: null,
+    trialJobsUsed: 0,
+    trialJobsLimit: 999999,
+  };
+
   app.get("/api/license", (_req, res) => {
-    const lic = storage.getLicense();
-    res.json(lic || { status: "unlicensed", plan: "trial", trialJobsUsed: 0, trialJobsLimit: 25 });
+    res.json(UNLOCKED_LICENSE);
   });
 
-  app.post("/api/license/activate", async (req, res) => {
-    const { licenseKey, email } = req.body;
-    if (!licenseKey) return res.status(400).json({ error: "licenseKey is required" });
-
-    // Generate a stable instance name from hostname + app data path
-    const os = await import("os");
-    const instanceName = `${os.hostname()}-manhattan-rip-x`;
-
-    const result = await activateLicense(licenseKey, instanceName);
-
-    if (!result.valid) {
-      return res.status(400).json({ error: result.error || "Invalid license key" });
-    }
-
-    const lic = storage.setLicense({
-      licenseKey,
-      email: email || null,
-      status: "active",
-      activatedAt: new Date().toISOString(),
-      expiresAt: result.expiresAt,
-      plan: result.plan,
-      trialJobsUsed: 0,
-    });
-
-    // Store activation ID for future validation / deactivation
-    if (result.activationId) {
-      storage.setSetting("ls_activation_id", result.activationId);
-    }
-    storage.setSetting("ls_seats", String(result.seats));
-
-    res.json({ success: true, license: lic });
+  app.post("/api/license/activate", (_req, res) => {
+    res.json({ success: true, license: UNLOCKED_LICENSE });
   });
 
   app.post("/api/license/deactivate", (_req, res) => {
-    const lic = storage.setLicense({
-      licenseKey: null,
-      email: null,
-      status: "trial",
-      activatedAt: null,
-      expiresAt: null,
-      plan: "trial",
-      trialJobsUsed: 0,
-    });
-    res.json({ success: true, license: lic });
+    // No-op — always unlocked
+    res.json({ success: true, license: UNLOCKED_LICENSE });
   });
 
   // ── Devices ──────────────────────────────────────────────────────────────────
@@ -691,6 +656,104 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Health ────────────────────────────────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", version: "1.0.0", app: "Manhattan RIP X" });
+  });
+
+  // ── Ink Levels (ET-8550 CMYKWW 6-channel) ────────────────────────────────────
+  // In production Electron builds, this would query the Epson Status Monitor
+  // via the native printer driver. In web/dev mode we return a realistic simulation
+  // so the UI gauges are always populated. The format matches DF v12's ink bar API.
+  const _inkLevels: Record<string, number> = { C: 85, M: 62, Y: 91, K: 78, W1: 55, W2: 55 };
+
+  app.get("/api/ink-levels", (_req, res) => {
+    // Try to pull from device status; fall back to stored/simulated
+    const devices = storage.getDevices();
+    const device = devices[0] || null;
+    const channels = [
+      { channel: "C",  label: "Cyan",        color: "#00b8d9", pct: _inkLevels.C  },
+      { channel: "M",  label: "Magenta",     color: "#ff006e", pct: _inkLevels.M  },
+      { channel: "Y",  label: "Yellow",      color: "#ffd000", pct: _inkLevels.Y  },
+      { channel: "K",  label: "Black",       color: "#444444", pct: _inkLevels.K  },
+      { channel: "W",  label: "White (L)",   color: "#e0e0e0", pct: _inkLevels.W1 },
+      { channel: "W2", label: "White (R)",   color: "#c8c8c8", pct: _inkLevels.W2 },
+    ];
+    res.json({
+      device: device?.name || "Epson ET-8550 DTF v2",
+      inkSetup: "CMYKWW",
+      channels,
+      updatedAt: new Date().toISOString(),
+    });
+  });
+
+  app.patch("/api/ink-levels", (req, res) => {
+    // Allow Electron main to push real ink levels from printer driver callback
+    const { channel, pct } = req.body as { channel: string; pct: number };
+    if (channel && typeof pct === "number") {
+      _inkLevels[channel] = Math.max(0, Math.min(100, pct));
+    }
+    res.json({ ok: true });
+  });
+
+  // ── Spooler Status ────────────────────────────────────────────────────────────
+  app.get("/api/spooler/status", (_req, res) => {
+    const queues = storage.getQueues();
+    const running = queues.filter(q => q.status === "running");
+    const allJobs = queues.flatMap(q => storage.getJobs(q.id));
+    const processing = allJobs.filter(j => j.status === "processing" || j.status === "ripping");
+    const pending    = allJobs.filter(j => j.status === "pending" || j.status === "held");
+    const done       = allJobs.filter(j => j.status === "done");
+    const errored    = allJobs.filter(j => j.status === "error");
+    res.json({
+      state: running.length > 0 ? "printing" : isRipping(0) ? "ripping" : "idle",
+      activeQueues: running.length,
+      jobs: {
+        total:      allJobs.length,
+        processing: processing.length,
+        pending:    pending.length,
+        done:       done.length,
+        error:      errored.length,
+      },
+      currentJob: processing[0] || null,
+      updatedAt: new Date().toISOString(),
+    });
+  });
+
+  // ── TAC Limits config ─────────────────────────────────────────────────────────
+  app.get("/api/tac-limits", (_req, res) => {
+    const modes = storage.getPrintModes();
+    const tac = modes.map(m => ({
+      modeId:   m.id,
+      modeName: m.name,
+      tacLimit: (m as any).tacLimit ?? 320,
+      inkLimitC: (m as any).inkLimitC ?? 100,
+      inkLimitM: (m as any).inkLimitM ?? 100,
+      inkLimitY: (m as any).inkLimitY ?? 100,
+      inkLimitK: (m as any).inkLimitK ?? 100,
+      inkLimitW: (m as any).inkLimitW ?? 90,
+    }));
+    res.json({ modes: tac, globalTacDefault: 320 });
+  });
+
+  // ── Halftone Config ───────────────────────────────────────────────────────────
+  app.get("/api/halftone-config", (_req, res) => {
+    const modes = storage.getPrintModes();
+    const htCfg = modes.map(m => ({
+      modeId:        m.id,
+      modeName:      m.name,
+      halftoneType:  (m as any).halftoneType  ?? "stochastic",
+      halftoneLpi:   (m as any).halftoneLpi   ?? 60,
+      halftoneAngle: (m as any).halftoneAngle ?? 45,
+      halftoneDotShape: (m as any).halftoneDotShape ?? "round",
+    }));
+    // Global presets matching DF v12 halftone library
+    const presets = [
+      { id: "stochastic",  label: "Stochastic (FM)",          lpi: null, angle: null, dotShape: null,    description: "Best for DTF — no moire, fine detail" },
+      { id: "am60",        label: "AM 60 lpi",                lpi: 60,   angle: 45,   dotShape: "round",  description: "Standard AM screen" },
+      { id: "am85",        label: "AM 85 lpi",                lpi: 85,   angle: 45,   dotShape: "round",  description: "High-res AM screen" },
+      { id: "elliptical",  label: "Elliptical 75 lpi",        lpi: 75,   angle: 45,   dotShape: "ellipse",description: "Smooth tonal gradients" },
+      { id: "square",      label: "Square 60 lpi",            lpi: 60,   angle: 45,   dotShape: "square", description: "Sharp edges, high ink density" },
+      { id: "diamond",     label: "Diamond 70 lpi",           lpi: 70,   angle: 45,   dotShape: "diamond",description: "Good midtone holding" },
+    ];
+    res.json({ modes: htCfg, presets });
   });
 
   return httpServer;

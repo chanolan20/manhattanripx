@@ -130,6 +130,7 @@ export default function QueueJobList({
     pending: jobs.filter(j => j.status === "pending").length,
     done: jobs.filter(j => j.status === "done").length,
     error: jobs.filter(j => j.status === "error").length,
+    totalCost: jobs.reduce((sum, j) => sum + (j.inkCost ?? 0) * (j.copies ?? 1), 0),
   };
 
   return (
@@ -234,11 +235,20 @@ export default function QueueJobList({
           />
         ))}
 
-        {/* Drop hint at bottom */}
+        {/* Drop hint + ink cost footer */}
         {activeJobs.length > 0 && (
-          <div className="py-2 text-center">
-            <p className="text-[9px] text-muted-foreground/30">Drop files here · Max 2000 jobs</p>
-          </div>
+          <>
+            <div className="py-1.5 text-center">
+              <p className="text-[9px] text-muted-foreground/30">Drop files here · Max 2000 jobs · Shift+click multi-select</p>
+            </div>
+            <div className="sticky bottom-0 flex items-center justify-end gap-4 px-3 py-1.5 bg-muted/60 border-t border-border/60 text-[10px]">
+              <span className="text-muted-foreground">
+                {activeJobs.length} job{activeJobs.length !== 1 ? "s" : ""} · {activeJobs.reduce((s, j) => s + (j.copies ?? 1), 0)} cop{activeJobs.reduce((s, j) => s + (j.copies ?? 1), 0) !== 1 ? "ies" : "y"}
+              </span>
+              <span className="text-muted-foreground">Total ink cost:</span>
+              <span className="font-mono font-semibold text-amber-400">${stats.totalCost.toFixed(3)}</span>
+            </div>
+          </>
         )}
       </div>
 
@@ -390,8 +400,13 @@ function JobRow({
       </div>
 
       {/* File Type */}
-      <div className="w-16 shrink-0 px-1 hidden lg:block">
+      <div className="w-14 shrink-0 px-1 hidden lg:block">
         <span className="text-[10px] text-muted-foreground/70 font-mono">{job.fileType || "PNG"}</span>
+      </div>
+
+      {/* DPI */}
+      <div className="w-8 shrink-0 text-center hidden lg:block">
+        <span className="text-[9px] text-muted-foreground/60 font-mono">{job.dpi || 300}</span>
       </div>
 
       {/* Dimensions */}
@@ -399,6 +414,11 @@ function JobRow({
         <span className="text-[10px] mono text-muted-foreground">
           {(job.width ?? 0).toFixed(2)}" × {(job.height ?? 0).toFixed(2)}"
         </span>
+      </div>
+
+      {/* Port */}
+      <div className="w-16 shrink-0 px-1 hidden xl:block">
+        <span className="text-[9px] text-muted-foreground/50 font-mono">{(job as any).port || "USB001"}</span>
       </div>
 
       {/* Actions menu */}

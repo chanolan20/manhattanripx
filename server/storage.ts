@@ -122,6 +122,35 @@ try { sqlite.exec(`ALTER TABLE queues ADD COLUMN substrate_color TEXT NOT NULL D
 try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN x_offset REAL NOT NULL DEFAULT 0`); } catch {}
 try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN y_offset REAL NOT NULL DEFAULT 0`); } catch {}
 try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN print_mode TEXT`); } catch {}
+// v2.1 migrations
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN print_mode_id INTEGER`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN mirror_h INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN mirror_v INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN crop_marks INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN bleed REAL NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN tile_rows INTEGER NOT NULL DEFAULT 1`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN tile_cols INTEGER NOT NULL DEFAULT 1`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN tile_overlap REAL NOT NULL DEFAULT 0.125`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN white_opacity_override INTEGER`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN white_choke_override INTEGER`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN ink_coverage TEXT`); } catch {}
+try { sqlite.exec(`ALTER TABLE jobs ADD COLUMN notes TEXT`); } catch {}
+// v2.1 print_modes halftone + ink limit columns
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_type TEXT NOT NULL DEFAULT 'stochastic'`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_lpi INTEGER NOT NULL DEFAULT 60`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_angle INTEGER NOT NULL DEFAULT 45`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN halftone_dot_shape TEXT NOT NULL DEFAULT 'round'`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN tac_limit INTEGER NOT NULL DEFAULT 320`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_c INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_m INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_y INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_k INTEGER NOT NULL DEFAULT 100`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN ink_limit_w INTEGER NOT NULL DEFAULT 90`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN white_flood INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN white_detail INTEGER NOT NULL DEFAULT 1`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN black_enhancement INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN color_boost INTEGER NOT NULL DEFAULT 0`); } catch {}
+try { sqlite.exec(`ALTER TABLE print_modes ADD COLUMN description TEXT`); } catch {}
 
 import type {
   Device, InsertDevice,
