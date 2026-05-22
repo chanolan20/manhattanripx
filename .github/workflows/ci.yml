@@ -5,15 +5,13 @@ on:
     branches: [main, develop, "feature/**", "fix/**"]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Job 1: Type-check + Lint
-  # ─────────────────────────────────────────────────────────────────────────────
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
@@ -33,9 +31,6 @@ jobs:
       - name: TypeScript check
         run: npm run check
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Job 2: Unit + Integration Tests
-  # ─────────────────────────────────────────────────────────────────────────────
   test:
     name: Test Suite
     runs-on: ubuntu-latest
@@ -43,7 +38,6 @@ jobs:
 
     env:
       NODE_ENV: test
-      # Suppress heavy log output during tests
       CI: true
 
     steps:
@@ -56,39 +50,20 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Install system dependencies (ImageMagick for PDF tests)
+      - name: Install system dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y imagemagick ghostscript
-          # Allow PDF processing in ImageMagick policy
           sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' \
             /etc/ImageMagick-6/policy.xml || true
 
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Run all tests with coverage
-        run: npx vitest run --coverage --reporter=verbose
+      - name: Run all tests
+        run: npx vitest run --reporter=verbose
         timeout-minutes: 15
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 14
-
-      - name: Coverage summary comment (PR only)
-        if: github.event_name == 'pull_request'
-        uses: davelosert/vitest-coverage-report-action@v2
-        with:
-          json-summary-path: coverage/coverage-summary.json
-          json-final-path: coverage/coverage-final.json
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Job 3: Build validation
-  # ─────────────────────────────────────────────────────────────────────────────
   build:
     name: Build Validation
     runs-on: ubuntu-latest
@@ -110,13 +85,13 @@ jobs:
       - name: Build client + server
         run: npm run build
 
-      - name: Verify build output exists
+      - name: Verify build output
         run: |
           test -f dist/public/index.html || (echo "❌ index.html missing" && exit 1)
           test -f dist/index.cjs          || (echo "❌ dist/index.cjs missing" && exit 1)
           echo "✅ Build outputs verified"
 
-      - name: Smoke test — server starts and responds
+      - name: Smoke test — server starts
         run: |
           node dist/index.cjs &
           SERVER_PID=$!
@@ -127,15 +102,7 @@ jobs:
             echo "❌ Health check failed: HTTP $STATUS"
             exit 1
           fi
-          echo "✅ Server health check passed (HTTP $STATUS)"
+          echo "✅ Server health check passed"
         env:
           NODE_ENV: production
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-build
-          path: |
-            dist/
-            !dist/public/assets/
-          retention-days: 7
