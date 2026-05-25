@@ -229,19 +229,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const job = storage.getJob(jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    // ── Trial gate ──────────────────────────────────────────────────────────
-    const licRaw = storage.getLicense() as import("./licenseServer").LicenseInfo | null;
-    const lic = validateLicense(licRaw);
-    if (lic.status === "trial") {
-      if (lic.trialJobsUsed >= lic.trialJobsLimit) {
-        return res.status(402).json({
-          error: "Trial limit reached",
-          message: `You have used all ${lic.trialJobsLimit} trial prints. Upgrade to Pro to continue.`,
-          upgradeUrl: "https://www.manhattanviral.com/mrx",
-        });
-      }
-      storage.incrementTrialJobs();
-    }
+    // PERSONAL BUILD: fully unlocked — no trial gate
 
     storage.updateJob(jobId, { status: "processing", ripProgress: 0 });
 
