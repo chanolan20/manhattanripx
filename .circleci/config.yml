@@ -1,0 +1,69 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@6.1.0
+
+jobs:
+  typecheck:
+    docker:
+      - image: cimg/node:20.18
+    resource_class: medium
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          name: TypeScript check
+          command: npm run check
+
+  test:
+    docker:
+      - image: cimg/node:20.18
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Install system deps
+          command: |
+            sudo apt-get update -qq
+            sudo apt-get install -y imagemagick ghostscript
+            sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' \
+              /etc/ImageMagick-6/policy.xml || true
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          name: Run tests
+          command: npx vitest run --reporter=verbose
+          no_output_timeout: 15m
+
+  build:
+    docker:
+      - image: cimg/node:20.18
+    resource_class: medium
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: npm
+      - run:
+          name: Build client + server
+          command: npm run build
+      - run:
+          name: Verify build output
+          command: |
+            test -f dist/public/index.html || (echo "❌ index.html missing" && exit 1)
+            test -f dist/index.cjs          || (echo "❌ dist/index.cjs missing" && exit 1)
+            echo "✅ Build verified"
+      - store_artifacts:
+          path: dist/public
+          destination: build-output
+
+workflows:
+  ci:
+    jobs:
+      - typecheck
+      - test:
+          requires:
+            - typecheck
+      - build:
+          requires:
+            - test
