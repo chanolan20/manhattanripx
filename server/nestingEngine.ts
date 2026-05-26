@@ -8,7 +8,7 @@
  * Heuristic: Best Short Side Fit (BSSF) with optional 90° rotation.
  */
 
-import sharp from "sharp";
+import { Jimp } from "jimp";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -68,10 +68,10 @@ export async function autoNestJobs(
     let w: number, h: number;
 
     try {
-      const meta = await sharp(job.filePath).metadata();
+      const img = await Jimp.read(job.filePath);
       const scale = (job.scalePercent ?? 100) / 100;
-      w = ((meta.width ?? 300) / dpi) * scale;
-      h = ((meta.height ?? 300) / dpi) * scale;
+      w = (img.bitmap.width / dpi) * scale;
+      h = (img.bitmap.height / dpi) * scale;
     } catch {
       // Fallback dimensions if file can't be read
       w = 4.0;

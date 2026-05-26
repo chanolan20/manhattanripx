@@ -12,9 +12,11 @@
  *
  * Proof Window composite: overlay all channels at configurable opacity
  * to preview exactly what will print before sending to queue.
+ *
+ * Pure JS — no sharp, no native binaries required.
  */
 
-import sharp, { Sharp } from "sharp";
+import { Jimp } from "jimp";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -75,18 +77,51 @@ function tmpPath(suffix: string): string {
   return path.join(os.tmpdir(), `mrx_sep_${Date.now()}_${Math.random().toString(36).slice(2)}.${suffix}`);
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace("#", "");
+  return {
+    r: parseInt(h.substring(0, 2), 16) || 128,
+    g: parseInt(h.substring(2, 4), 16) || 128,
+    b: parseInt(h.substring(4, 6), 16) || 128,
+  };
+}
+
 async function makeThumbnail(filePath: string, color?: string): Promise<string> {
-  let pipeline = sharp(filePath).resize(300, null, { fit: "inside" });
-  if (color) {
-    // Tint the grayscale channel with its print color for the proof window
-    const hex = color.replace("#", "");
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    pipeline = pipeline.tint({ r, g, b });
+  try {
+    const img = await Jimp.read(filePath);
+    img.scaleToFit({ w: 300, h: 300 });
+    if (color) {
+      const { r, g, b } = hexToRgb(color);
+      // Tint by blending each pixel toward the display color
+      const data = img.bitmap.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const lum = data[i] / 255;
+        data[i]     = Math.round(r * lum);
+        data[i + 1] = Math.round(g * lum);
+        data[i + 2] = Math.round(b * lum);
+        // keep alpha
+      }
+    }
+    const buf = await img.getBuffer("image/png");
+    return `data:image/png;base64,${buf.toString("base64")}`;
+  } catch {
+    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
   }
-  const buf = await pipeline.png({ compressionLevel: 6 }).toBuffer();
-  return `data:image/png;base64,${buf.toString("base64")}`;
+}
+
+// Save a raw grayscale buffer as PNG
+async function saveGrayscale(data: Buffer, width: number, height: number, outPath: string): Promise<void> {
+  // Create an RGBA image from grayscale buffer
+  const img = new Jimp({ width, height, color: 0x000000ff });
+  const rgba = img.bitmap.data;
+  for (let i = 0; i < width * height; i++) {
+    const v = data[i];
+    rgba[i * 4]     = v;
+    rgba[i * 4 + 1] = v;
+    rgba[i * 4 + 2] = v;
+    rgba[i * 4 + 3] = 255;
+  }
+  await img.write(outPath as `${string}.png`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,94 +136,97 @@ export async function separateArt(
   const channels: SeparationChannel[] = [];
 
   // ── Step 1: Load + normalize input ───────────────────────────────────────
-  const meta = await sharp(inputPath).metadata();
-  const W = meta.width || 1000;
-  const H = meta.height || 1000;
+  const img = await Jimp.read(inputPath);
+  const W = img.bitmap.width;
+  const H = img.bitmap.height;
+  const rawRGBA = img.bitmap.data; // RGBA buffer, stride 4
 
-  // Ensure RGBA
-  const rgbaPath = tmpPath("png");
-  await sharp(inputPath).ensureAlpha().toFile(rgbaPath);
-
-  // Get raw RGBA buffer for pixel-level operations
-  const { data: rawRGBA, info } = await sharp(rgbaPath)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const stride = info.channels; // 4
-
-  // ── Step 2: CMYK Separation via sharp channel extraction ─────────────────
-  // Convert to CMYK color space for true separation
-  const cmykPath = tmpPath("tif");
-  await sharp(rgbaPath).toColorspace("cmyk").toFile(cmykPath);
-
-  // Extract each CMYK channel as grayscale
-  const channelDefs: Array<{ name: string; type: "C"|"M"|"Y"|"K"; color: string; order: number }> = [
-    { name: "Cyan",    type: "C", color: "#00aeef", order: 4 },
-    { name: "Magenta", type: "M", color: "#ec008c", order: 3 },
-    { name: "Yellow",  type: "Y", color: "#fff200", order: 2 },
-    { name: "Black",   type: "K", color: "#231f20", order: 5 },
+  // ── Step 2: CMYK Separation (computed from RGB) ───────────────────────────
+  const channelDefs: Array<{ name: string; type: "C"|"M"|"Y"|"K"; color: string; order: number; idx: 0|1|2|3 }> = [
+    { name: "Cyan",    type: "C", color: "#00aeef", order: 4, idx: 0 },
+    { name: "Magenta", type: "M", color: "#ec008c", order: 3, idx: 1 },
+    { name: "Yellow",  type: "Y", color: "#fff200", order: 2, idx: 2 },
+    { name: "Black",   type: "K", color: "#231f20", order: 5, idx: 3 },
   ];
 
-  for (let i = 0; i < channelDefs.length; i++) {
-    const def = channelDefs[i];
-    const chanPath = tmpPath("png");
-    try {
-      await sharp(cmykPath)
-        .extractChannel(i as 0|1|2|3)
-        .png()
-        .toFile(chanPath);
+  // Build all 4 CMYK channels in one pass
+  const cmykBuffers = [
+    Buffer.alloc(W * H), // C
+    Buffer.alloc(W * H), // M
+    Buffer.alloc(W * H), // Y
+    Buffer.alloc(W * H), // K
+  ];
 
-      channels.push({
-        name: def.name,
-        type: def.type,
-        filePath: chanPath,
-        previewBase64: await makeThumbnail(chanPath, def.color),
-        displayColor: def.color,
-        opacity: def.type === "K" ? 90 : 85,
-        printOrder: def.order,
-      });
-    } catch {
-      // CMYK extract failed (e.g., source is already grayscale) — skip
+  for (let i = 0; i < W * H; i++) {
+    const r = rawRGBA[i * 4];
+    const g = rawRGBA[i * 4 + 1];
+    const b = rawRGBA[i * 4 + 2];
+    const a = rawRGBA[i * 4 + 3];
+
+    if (a < 10) continue;
+
+    const rf = r / 255, gf = g / 255, bf = b / 255;
+    const k = 1 - Math.max(rf, gf, bf);
+    if (k < 1) {
+      const d = 1 - k;
+      cmykBuffers[0][i] = Math.round(((1 - rf - k) / d) * 255);
+      cmykBuffers[1][i] = Math.round(((1 - gf - k) / d) * 255);
+      cmykBuffers[2][i] = Math.round(((1 - bf - k) / d) * 255);
+      cmykBuffers[3][i] = Math.round(k * 255);
+    } else {
+      cmykBuffers[3][i] = 255;
     }
+  }
+
+  for (const def of channelDefs) {
+    const chanPath = tmpPath("png");
+    await saveGrayscale(cmykBuffers[def.idx], W, H, chanPath);
+    channels.push({
+      name: def.name,
+      type: def.type,
+      filePath: chanPath,
+      previewBase64: await makeThumbnail(chanPath, def.color),
+      displayColor: def.color,
+      opacity: def.type === "K" ? 90 : 85,
+      printOrder: def.order,
+    });
   }
 
   // ── Step 3: White Underbase ───────────────────────────────────────────────
   if (opts.whiteUnderbases) {
-    const underbasePath = await buildWhiteUnderbase(rawRGBA, W, H, stride, opts);
-    const ubPrev = await makeThumbnail(underbasePath, "#ffffff");
+    const underbasePath = await buildWhiteUnderbase(rawRGBA, W, H, opts);
     channels.push({
       name: "White Underbase",
       type: "white_underbase",
       filePath: underbasePath,
-      previewBase64: ubPrev,
+      previewBase64: await makeThumbnail(underbasePath, "#ffffff"),
       displayColor: "#ffffff",
       opacity: 80,
-      printOrder: 1, // always first
+      printOrder: 1,
     });
   }
 
   // ── Step 4: Highlight White ───────────────────────────────────────────────
   if (opts.highlightWhite) {
-    const hlPath = await buildHighlightWhite(rawRGBA, W, H, stride, opts);
-    const hlPrev = await makeThumbnail(hlPath, "#e8e8e8");
+    const hlPath = await buildHighlightWhite(rawRGBA, W, H, opts);
     channels.push({
       name: "Highlight White",
       type: "highlight_white",
       filePath: hlPath,
-      previewBase64: hlPrev,
+      previewBase64: await makeThumbnail(hlPath, "#e8e8e8"),
       displayColor: "#e8e8e8",
       opacity: 90,
-      printOrder: 99, // always last
+      printOrder: 99,
     });
   }
 
   // ── Step 5: Black Detail ─────────────────────────────────────────────────
-  const blackPath = await buildBlackDetail(rawRGBA, W, H, stride, opts.blackMode);
-  const bkPrev = await makeThumbnail(blackPath, "#111111");
+  const blackPath = await buildBlackDetail(rawRGBA, W, H, opts.blackMode);
   channels.push({
     name: "Black Detail",
     type: "black_detail",
     filePath: blackPath,
-    previewBase64: bkPrev,
+    previewBase64: await makeThumbnail(blackPath, "#111111"),
     displayColor: "#111111",
     opacity: 95,
     printOrder: 6,
@@ -196,7 +234,7 @@ export async function separateArt(
 
   // ── Step 6: Spot Colors ───────────────────────────────────────────────────
   for (const spot of opts.spotColors) {
-    const spotPath = await buildSpotChannel(rawRGBA, W, H, stride, spot);
+    const spotPath = await buildSpotChannel(rawRGBA, W, H, spot);
     channels.push({
       name: spot.name,
       type: "spot",
@@ -214,16 +252,10 @@ export async function separateArt(
   }
 
   // ── Step 8: Proof window composite ───────────────────────────────────────
-  const compositePath = await buildComposite(rgbaPath, channels, opts);
-  const compositePreview = `data:image/png;base64,${
-    (await sharp(compositePath).resize(600, null, { fit: "inside" }).png({ compressionLevel: 6 }).toBuffer()).toString("base64")
-  }`;
+  const compositePreview = await buildComposite(img, channels, opts);
 
   // Sort channels by print order for display
   channels.sort((a, b) => a.printOrder - b.printOrder);
-
-  // Cleanup intermediate files
-  try { fs.unlinkSync(rgbaPath); fs.unlinkSync(cmykPath); } catch {}
 
   return {
     channels,
@@ -235,12 +267,11 @@ export async function separateArt(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// White Underbase: areas that need white ink laid down first
-// Strategy: use alpha channel + luminance to determine where underbase is needed
+// White Underbase
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function buildWhiteUnderbase(
-  rgba: Buffer, W: number, H: number, stride: number,
+  rgba: Buffer, W: number, H: number,
   opts: SeparationOptions
 ): Promise<string> {
   const out = Buffer.alloc(W * H);
@@ -250,27 +281,22 @@ async function buildWhiteUnderbase(
     : opts.garmentColor === "light" ? 200
     : opts.garmentColor === "custom" && opts.garmentRGB
       ? Math.round(opts.garmentRGB.r * 0.299 + opts.garmentRGB.g * 0.587 + opts.garmentRGB.b * 0.114)
-    : 255; // white garment
+    : 255;
 
   for (let i = 0; i < W * H; i++) {
-    const r = rgba[i * stride];
-    const g = rgba[i * stride + 1];
-    const b = rgba[i * stride + 2];
-    const a = rgba[i * stride + 3];
+    const r = rgba[i * 4];
+    const g = rgba[i * 4 + 1];
+    const b = rgba[i * 4 + 2];
+    const a = rgba[i * 4 + 3];
 
-    if (a < 10) { out[i] = 0; continue; } // fully transparent — no underbase
+    if (a < 10) { out[i] = 0; continue; }
 
-    // On white garments, underbase is needed where colors appear
-    // On dark garments, underbase is needed everywhere with alpha
     const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
 
     let underbaseVal: number;
     if (garmentLum < 128) {
-      // Dark garment: underbase needed for all non-transparent pixels
-      // More underbase for lighter colors (they need white to pop)
       underbaseVal = Math.round((lum / 255) * (a / 255) * 255);
     } else {
-      // Light/white garment: underbase for saturated/dark areas
       const maxC = Math.max(r, g, b);
       const minC = Math.min(r, g, b);
       const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
@@ -280,12 +306,10 @@ async function buildWhiteUnderbase(
     out[i] = underbaseVal;
   }
 
-  // Apply choke: erode the underbase slightly so it doesn't peek out
   const rawPath = tmpPath("png");
-  await sharp(out, { raw: { width: W, height: H, channels: 1 } })
-    .png()
-    .toFile(rawPath);
+  await saveGrayscale(out, W, H, rawPath);
 
+  // Apply choke via ImageMagick if available
   if (opts.chokePx > 0) {
     const chokedPath = tmpPath("png");
     try {
@@ -293,10 +317,10 @@ async function buildWhiteUnderbase(
         `convert "${rawPath}" -morphology Erode Disk:${opts.chokePx} "${chokedPath}"`,
         { timeout: 30000 }
       );
-      fs.unlinkSync(rawPath);
+      try { fs.unlinkSync(rawPath); } catch {}
       return chokedPath;
     } catch {
-      return rawPath; // ImageMagick not available — return unchoked
+      return rawPath;
     }
   }
 
@@ -304,43 +328,43 @@ async function buildWhiteUnderbase(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Highlight White: specular highlights and light areas on top of print
+// Highlight White
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function buildHighlightWhite(
-  rgba: Buffer, W: number, H: number, stride: number,
+  rgba: Buffer, W: number, H: number,
   opts: SeparationOptions
 ): Promise<string> {
   const out = Buffer.alloc(W * H);
 
   for (let i = 0; i < W * H; i++) {
-    const r = rgba[i * stride];
-    const g = rgba[i * stride + 1];
-    const b = rgba[i * stride + 2];
-    const a = rgba[i * stride + 3];
+    const r = rgba[i * 4];
+    const g = rgba[i * 4 + 1];
+    const b = rgba[i * 4 + 2];
+    const a = rgba[i * 4 + 3];
 
     if (a < 10) { out[i] = 0; continue; }
 
     const lum = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
-    // Highlight white appears in very bright areas (lum > 200)
     const threshold = 200;
     out[i] = lum > threshold ? Math.round(((lum - threshold) / 55) * (a / 255) * 255) : 0;
   }
 
   const hlPath = tmpPath("png");
-  await sharp(out, { raw: { width: W, height: H, channels: 1 } })
-    .png()
-    .toFile(hlPath);
+  await saveGrayscale(out, W, H, hlPath);
 
   if (opts.removeWhiteHaze) {
-    // Apply a levels adjustment to eliminate near-white haze
     try {
+      const img = await Jimp.read(hlPath);
+      // Apply levels: cut off anything below 20% luminance
+      const data = img.bitmap.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const v = data[i];
+        data[i] = data[i + 1] = data[i + 2] = v < 51 ? 0 : Math.round((v - 51) / 204 * 255);
+      }
       const cleanPath = tmpPath("png");
-      await execAsync(
-        `convert "${hlPath}" -level 20%,100% "${cleanPath}"`,
-        { timeout: 15000 }
-      );
-      fs.unlinkSync(hlPath);
+      await img.write(cleanPath as `${string}.png`);
+      try { fs.unlinkSync(hlPath); } catch {}
       return cleanPath;
     } catch { return hlPath; }
   }
@@ -349,22 +373,20 @@ async function buildHighlightWhite(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Black Detail: shadow/outline separation
-// Mode "saturate": pulls black from dark saturated areas
-// Mode "detail": pulls black from edges/outlines
+// Black Detail
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function buildBlackDetail(
-  rgba: Buffer, W: number, H: number, stride: number,
+  rgba: Buffer, W: number, H: number,
   mode: BlackMode
 ): Promise<string> {
   const out = Buffer.alloc(W * H);
 
   for (let i = 0; i < W * H; i++) {
-    const r = rgba[i * stride];
-    const g = rgba[i * stride + 1];
-    const b = rgba[i * stride + 2];
-    const a = rgba[i * stride + 3];
+    const r = rgba[i * 4];
+    const g = rgba[i * 4 + 1];
+    const b = rgba[i * 4 + 2];
+    const a = rgba[i * 4 + 3];
 
     if (a < 10) { out[i] = 0; continue; }
 
@@ -374,13 +396,10 @@ async function buildBlackDetail(
     const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
 
     if (mode === "saturate") {
-      // Shadow areas: dark + saturated pulls more black
       out[i] = Math.round((1 - lum / 255) * (1 - saturation * 0.5) * (a / 255) * 255);
     } else if (mode === "detail") {
-      // Dark areas only
       out[i] = Math.round(Math.max(0, 1 - lum / 128) * (a / 255) * 255);
     } else {
-      // Both: blend of saturate and detail
       const sat = (1 - lum / 255) * (1 - saturation * 0.5);
       const det = Math.max(0, 1 - lum / 128);
       out[i] = Math.round(((sat + det) / 2) * (a / 255) * 255);
@@ -388,25 +407,25 @@ async function buildBlackDetail(
   }
 
   const bkPath = tmpPath("png");
-  await sharp(out, { raw: { width: W, height: H, channels: 1 } }).png().toFile(bkPath);
+  await saveGrayscale(out, W, H, bkPath);
   return bkPath;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Spot Color channel: select pixels within color tolerance range
+// Spot Color channel
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function buildSpotChannel(
-  rgba: Buffer, W: number, H: number, stride: number,
+  rgba: Buffer, W: number, H: number,
   spot: SpotColorTarget
 ): Promise<string> {
   const out = Buffer.alloc(W * H);
 
   for (let i = 0; i < W * H; i++) {
-    const r = rgba[i * stride];
-    const g = rgba[i * stride + 1];
-    const b = rgba[i * stride + 2];
-    const a = rgba[i * stride + 3];
+    const r = rgba[i * 4];
+    const g = rgba[i * 4 + 1];
+    const b = rgba[i * 4 + 2];
+    const a = rgba[i * 4 + 3];
 
     if (a < 10) { out[i] = 0; continue; }
 
@@ -414,18 +433,18 @@ async function buildSpotChannel(
     const dG = g - spot.g;
     const dB = b - spot.b;
     const dist = Math.sqrt(dR * dR + dG * dG + dB * dB);
-    const maxDist = spot.tolerance * 4.41; // 255 * sqrt(3) / 100 * tolerance
+    const maxDist = spot.tolerance * 4.41;
 
     out[i] = dist <= maxDist ? Math.round((1 - dist / maxDist) * (a / 255) * 255) : 0;
   }
 
   const spotPath = tmpPath("png");
-  await sharp(out, { raw: { width: W, height: H, channels: 1 } }).png().toFile(spotPath);
+  await saveGrayscale(out, W, H, spotPath);
   return spotPath;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Apply halftone dithering to semi-transparent edges for garment blending
+// Apply halftone dithering to edges
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function applyHalftoneEdges(channels: SeparationChannel[], frequency: number) {
@@ -439,7 +458,7 @@ async function applyHalftoneEdges(channels: SeparationChannel[], frequency: numb
         `convert "${ch.filePath}" -ordered-dither o8x8,${scale} "${htPath}"`,
         { timeout: 30000 }
       );
-      fs.unlinkSync(ch.filePath);
+      try { fs.unlinkSync(ch.filePath); } catch {}
       ch.filePath = htPath;
       ch.previewBase64 = await makeThumbnail(htPath, ch.displayColor);
     } catch {
@@ -449,59 +468,53 @@ async function applyHalftoneEdges(channels: SeparationChannel[], frequency: numb
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Build proof window composite: overlay all channels on garment color
+// Build proof window composite
 // ─────────────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function buildComposite(
-  originalPath: string,
+  sourceImg: any,
   channels: SeparationChannel[],
   opts: SeparationOptions
 ): Promise<string> {
-  const meta = await sharp(originalPath).metadata();
-  const W = meta.width || 800;
-  const H = meta.height || 800;
+  const W = sourceImg.bitmap.width;
+  const H = sourceImg.bitmap.height;
 
-  // Start with garment background
-  const bgColor = opts.garmentColor === "black" ? { r: 20, g: 20, b: 20 }
-    : opts.garmentColor === "dark" ? { r: 60, g: 60, b: 60 }
-    : opts.garmentColor === "custom" && opts.garmentRGB ? opts.garmentRGB
-    : { r: 245, g: 245, b: 245 };
+  // Garment background
+  const bgColor = opts.garmentColor === "black" ? 0x141414ff
+    : opts.garmentColor === "dark" ? 0x3c3c3cff
+    : opts.garmentColor === "custom" && opts.garmentRGB
+      ? (opts.garmentRGB.r << 24 | opts.garmentRGB.g << 16 | opts.garmentRGB.b << 8 | 0xff) >>> 0
+    : 0xf5f5f5ff;
 
-  const bgBuf = await sharp({
-    create: { width: W, height: H, channels: 3, background: bgColor }
-  }).png().toBuffer();
+  const composite = new Jimp({ width: W, height: H, color: bgColor });
 
   // Composite channels in print order
   const sorted = [...channels].sort((a, b) => a.printOrder - b.printOrder);
 
-  let composite = sharp(bgBuf);
-  const overlays: sharp.OverlayOptions[] = [];
-
   for (const ch of sorted) {
     if (!fs.existsSync(ch.filePath)) continue;
     try {
-      // Tint the grayscale channel with its display color
-      const hex = ch.displayColor.replace("#", "");
-      const cr = parseInt(hex.substring(0, 2), 16) || 128;
-      const cg = parseInt(hex.substring(2, 4), 16) || 128;
-      const cb = parseInt(hex.substring(4, 6), 16) || 128;
+      const { r, g, b } = hexToRgb(ch.displayColor);
+      const chanImg = await Jimp.read(ch.filePath);
+      chanImg.resize({ w: W, h: H });
 
-      const tintedBuf = await sharp(ch.filePath)
-        .resize(W, H, { fit: "fill" })
-        .tint({ r: cr, g: cg, b: cb })
-        .png()
-        .toBuffer();
+      // Tint channel pixels toward display color
+      const data = chanImg.bitmap.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const lum = data[i] / 255;
+        data[i]     = Math.round(r * lum);
+        data[i + 1] = Math.round(g * lum);
+        data[i + 2] = Math.round(b * lum);
+        data[i + 3] = data[i + 3]; // keep alpha
+      }
 
-      overlays.push({ input: tintedBuf, blend: "over", top: 0, left: 0 });
+      composite.composite(chanImg, 0, 0);
     } catch {}
   }
 
-  const outPath = tmpPath("png");
-  if (overlays.length > 0) {
-    await sharp(bgBuf).composite(overlays).png().toFile(outPath);
-  } else {
-    await sharp(bgBuf).png().toFile(outPath);
-  }
-
-  return outPath;
+  // Scale down for preview
+  composite.scaleToFit({ w: 600, h: 600 });
+  const buf = await composite.getBuffer("image/png");
+  return `data:image/png;base64,${buf.toString("base64")}`;
 }
