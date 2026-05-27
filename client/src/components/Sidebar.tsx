@@ -40,15 +40,11 @@ export default function Sidebar({ queues, activeQueueId, activeView, onSelectQue
   const [queuesOpen, setQueuesOpen] = useState(true);
   const { toast } = useToast();
 
-  const { data: license } = useQuery<License>({
-    queryKey: ["/api/license"],
-    refetchInterval: 60000,
-  });
-
-  const isLicensed = license?.status === "active";
-  const isTrial = !license || license.status === "trial";
-  const trialRemaining = Math.max(0, (license?.trialJobsLimit ?? 25) - (license?.trialJobsUsed ?? 0));
-  const trialLow = isTrial && trialRemaining <= 5;
+  // PERSONAL BUILD: fully unlocked
+  const isLicensed = true;
+  const isTrial = false;
+  const trialRemaining = 999999;
+  const trialLow = false;
 
   const createQueueMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/queues", {

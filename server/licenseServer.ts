@@ -1,5 +1,11 @@
-import crypto from "crypto";
+/**
+ * Manhattan RIP X — License Server
+ * PERSONAL FULLY UNLOCKED BUILD — v2.1.0-PERSONAL
+ * No trial gate. No activation required. All features enabled.
+ */
+
 export type LicensePlan = "trial" | "pro" | "studio" | "enterprise";
+
 export interface LicenseInfo {
   status: "trial" | "active" | "expired" | "invalid";
   plan: LicensePlan;
@@ -11,43 +17,43 @@ export interface LicenseInfo {
   trialJobsUsed: number;
   trialJobsLimit: number;
 }
-const TRIAL_LIMIT = 25;
-const PREFIX_PLAN: Record<string, LicensePlan> = { "MRXP": "pro", "MRXS": "studio", "MRXE": "enterprise" };
-const PLAN_SEATS: Record<LicensePlan, number> = { trial:1, pro:1, studio:3, enterprise:10 };
-export function validateLicenseKey(key: string): { valid: boolean; plan: LicensePlan; error?: string } {
-  if (!key || typeof key !== "string") return { valid: false, plan: "trial", error: "No license key provided." };
-  const trimmed = key.trim().toUpperCase();
-  if (trimmed.length < 16) return { valid: false, plan: "trial", error: "License key is too short." };
-  const prefix = trimmed.split("-")[0];
-  const plan = PREFIX_PLAN[prefix];
-  if (!plan) return { valid: false, plan: "trial", error: "Invalid license key prefix. Expected MRXP-, MRXS-, or MRXE-." };
-  if (trimmed.split("-").length < 4) return { valid: false, plan: "trial", error: "License key format invalid." };
-  return { valid: true, plan };
+
+const PERSONAL_LICENSE: LicenseInfo = {
+  status: "active",
+  plan: "enterprise",
+  licenseKey: "MRXE-PERSONAL-UNLOCKED-2026",
+  email: "gomezfrankg@gmail.com",
+  activatedAt: "2026-01-01T00:00:00.000Z",
+  expiresAt: null,           // never expires
+  seats: 10,
+  trialJobsUsed: 0,
+  trialJobsLimit: 999999,
+};
+
+export function validateLicenseKey(_key: string): { valid: boolean; plan: LicensePlan; error?: string } {
+  return { valid: true, plan: "enterprise" };
 }
-export function buildTrialLicense(trialJobsUsed = 0): LicenseInfo {
-  return { status:"trial", plan:"trial", licenseKey:null, email:null, activatedAt:null, expiresAt:null, seats:1, trialJobsUsed, trialJobsLimit:TRIAL_LIMIT };
+
+export function buildTrialLicense(_trialJobsUsed = 0): LicenseInfo {
+  return { ...PERSONAL_LICENSE };
 }
-export function buildActiveLicense(key: string, plan: LicensePlan, email: string|null=null, expiresAt: string|null=null): LicenseInfo {
-  return { status:"active", plan, licenseKey:key, email, activatedAt:new Date().toISOString(), expiresAt, seats:PLAN_SEATS[plan], trialJobsUsed:0, trialJobsLimit:TRIAL_LIMIT };
+
+export function buildActiveLicense(_key: string, _plan: LicensePlan, _email: string | null = null, _expiresAt: string | null = null): LicenseInfo {
+  return { ...PERSONAL_LICENSE };
 }
-export function validateLicense(stored: Partial<LicenseInfo>|null): LicenseInfo {
-  if (!stored || stored.status === "trial" || !stored.licenseKey) return buildTrialLicense(stored?.trialJobsUsed ?? 0);
-  if (stored.status === "active") {
-    if (stored.expiresAt && new Date(stored.expiresAt) < new Date()) return { ...buildTrialLicense(stored.trialJobsUsed??0), status:"expired", plan:stored.plan??"trial", licenseKey:stored.licenseKey, email:stored.email??null } as LicenseInfo;
-    return stored as LicenseInfo;
-  }
-  return buildTrialLicense(stored?.trialJobsUsed ?? 0);
+
+export function validateLicense(_stored: Partial<LicenseInfo> | null): LicenseInfo {
+  return { ...PERSONAL_LICENSE };
 }
-export function activateLicense(key: string, email: string|null, expiresAt: string|null=null): { success:boolean; license:LicenseInfo; error?:string } {
-  const v = validateLicenseKey(key);
-  if (!v.valid) return { success:false, license:buildTrialLicense(), error:v.error };
-  return { success:true, license:buildActiveLicense(key, v.plan, email, expiresAt) };
+
+export function activateLicense(_key: string, _email: string | null, _expiresAt: string | null = null): { success: boolean; license: LicenseInfo; error?: string } {
+  return { success: true, license: { ...PERSONAL_LICENSE } };
 }
-export function deactivateLicense(): { success:boolean; license:LicenseInfo } {
-  return { success:true, license:buildTrialLicense() };
+
+export function deactivateLicense(): { success: boolean; license: LicenseInfo } {
+  return { success: true, license: { ...PERSONAL_LICENSE } };
 }
-export function generateLicenseKey(plan: LicensePlan): string {
-  const m: Record<LicensePlan,string> = { trial:"MRXT", pro:"MRXP", studio:"MRXS", enterprise:"MRXE" };
-  const seg = () => crypto.randomBytes(2).toString("hex").toUpperCase();
-  return `${m[plan]??'MRXP'}-${seg()}-${seg()}-${seg()}`;
+
+export function generateLicenseKey(_plan: LicensePlan): string {
+  return "MRXE-PERSONAL-UNLOCKED-2026";
 }

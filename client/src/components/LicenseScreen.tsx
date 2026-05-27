@@ -1,79 +1,46 @@
 /**
- * Manhattan RIP X — License Screen (FULLY UNLOCKED — Personal Copy)
+ * Manhattan RIP X — License Screen
+ * PERSONAL FULLY UNLOCKED BUILD
  */
-import { CheckCircle, Unlock, Zap } from "lucide-react";
+import { Shield, CheckCircle, Zap } from "lucide-react";
 
-interface LicenseScreenProps {
-  onClose?: () => void;
-}
-
-export default function LicenseScreen({ onClose }: LicenseScreenProps) {
+export default function LicenseScreen() {
   return (
-    <div className="flex flex-col h-full bg-zinc-900 text-zinc-100 overflow-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700 bg-zinc-800">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center">
-            <Unlock className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h1 className="text-base font-semibold text-white">Manhattan RIP X</h1>
-            <p className="text-xs text-zinc-400">License & Activation</p>
-          </div>
-        </div>
-        {onClose && (
-          <button onClick={onClose} className="text-zinc-400 hover:text-white text-xl leading-none">×</button>
-        )}
+    <div className="flex flex-col items-center justify-center h-full gap-6 p-8 text-center">
+      <div className="flex items-center gap-3">
+        <Shield className="w-10 h-10 text-emerald-400" />
+        <span className="text-2xl font-bold text-white">Manhattan RIP X</span>
       </div>
 
-      <div className="flex-1 p-6 flex flex-col items-center justify-center space-y-6">
-        {/* Unlocked badge */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-20 h-20 rounded-full bg-green-500/10 border-2 border-green-500 flex items-center justify-center">
-            <CheckCircle className="w-10 h-10 text-green-400" />
-          </div>
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white">Pro — Fully Unlocked</h2>
-            <p className="text-zinc-400 text-sm mt-1">All features active · No print limit · No expiry</p>
-          </div>
+      <div className="bg-emerald-900/40 border border-emerald-500/40 rounded-xl p-6 max-w-md w-full">
+        <div className="flex items-center gap-2 justify-center mb-3">
+          <CheckCircle className="w-5 h-5 text-emerald-400" />
+          <span className="text-emerald-400 font-semibold text-lg">Enterprise — Fully Unlocked</span>
         </div>
+        <p className="text-zinc-300 text-sm mb-4">Personal license — all features enabled, no restrictions.</p>
 
-        {/* License details */}
-        <div className="w-full max-w-sm bg-zinc-800 border border-zinc-700 rounded-lg p-4 space-y-2 text-sm">
+        <div className="grid grid-cols-2 gap-2 text-xs text-left">
           {[
-            ["Plan", "Pro (Lifetime)"],
-            ["License Key", "MRXP-PERSONAL-UNLOCKED-2026"],
-            ["Email", "gomezfrankg@gmail.com"],
-            ["Prints Remaining", "Unlimited"],
+            ["License Key", "MRXE-PERSONAL-UNLOCKED-2026"],
+            ["Plan", "Enterprise"],
+            ["Seats", "10"],
+            ["Print Jobs", "Unlimited"],
+            ["Color Profiles", "Unlimited"],
+            ["Gang Sheets", "Unlimited"],
+            ["Hot Folders", "Unlimited"],
             ["Expires", "Never"],
           ].map(([k, v]) => (
-            <div key={k} className="flex justify-between">
-              <span className="text-zinc-400">{k}</span>
-              <span className="text-zinc-100 font-mono text-xs">{v}</span>
+            <div key={k} className="bg-zinc-800/60 rounded p-2">
+              <div className="text-zinc-500 mb-0.5">{k}</div>
+              <div className="text-white font-medium truncate">{v}</div>
             </div>
           ))}
         </div>
+      </div>
 
-        {/* Features */}
-        <div className="w-full max-w-sm space-y-2">
-          {[
-            "Full RIP engine — halftone, TAC, ink limits",
-            "All Epson DTF drivers (ET-8550, L18050, SC-P700…)",
-            "Gang Sheet Builder — unlimited sheets",
-            "Color Management — ICC profiles, soft proof",
-            "Windows & macOS — all features unlocked",
-            "Hot Folder, Nesting, AI Auto-Profiler",
-          ].map((f) => (
-            <div key={f} className="flex items-center gap-2 text-sm text-zinc-300">
-              <Zap className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              {f}
-            </div>
-          ))}
-        </div>
-
-        <p className="text-xs text-zinc-600 text-center pt-2">
-          Manhattan RIP X v2.1.0 · © 2026 Manhattan Viral · Personal License
-        </p>
+      <div className="flex items-center gap-2 text-zinc-500 text-xs">
+        <Zap className="w-3 h-3" />
+        <span>Manhattan RIP X v2.1.0 — DTF Professional RIP Software</span>
       </div>
     </div>
   );

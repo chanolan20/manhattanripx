@@ -57,10 +57,12 @@ function startBackend() {
   backendProcess = spawn(process.execPath, [serverBin], {
     env: {
       ...process.env,
-      NODE_ENV:    'production',
-      PORT:        String(SERVER_PORT),
-      DB_PATH:     path.join(app.getPath('userData'), 'manhattan-rip-x.db'),
-      UPLOADS_DIR: path.join(app.getPath('userData'), 'uploads'),
+      NODE_ENV:       'production',
+      PORT:           String(SERVER_PORT),
+      DB_PATH:        path.join(app.getPath('userData'), 'manhattan-rip-x.db'),
+      UPLOADS_DIR:    path.join(app.getPath('userData'), 'uploads'),
+      PUBLIC_PATH:    path.join(process.resourcesPath, 'public'),
+      RESOURCES_PATH: process.resourcesPath,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -190,70 +192,45 @@ async function createWindow() {
 
   const appUrl = `http://localhost:${SERVER_PORT}`;
 
-  // KEY FIX: show window as soon as DOM is ready (not waiting for full paint)
+  // ── Step 1: Show the window instantly via file:// (zero black screen) ──────
+  // The React bundle is inside the asar. We load it directly so the UI appears
+  // immediately while the Node backend is still starting up.
+  const publicPath = IS_DEV
+    ? path.join(__dirname, '..', 'dist', 'public', 'index.html')
+    : path.join(process.resourcesPath, 'public', 'index.html');
+
+  const fileUrl = `file://${publicPath.replace(/\\/g, '/')}`;
+
   mainWindow.webContents.once('dom-ready', () => {
     closeSplash();
     mainWindow.show();
     if (!IS_MAC) mainWindow.maximize();
-    if (IS_DEV) mainWindow.webContents.openDevTools();
   });
 
-  // Fallback: force show after 12s no matter what
+  // Force show after 8s no matter what
   const forceShowTimer = setTimeout(() => {
     closeSplash();
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       mainWindow.show();
     }
-  }, 12000);
+  }, 8000);
 
-  mainWindow.webContents.once('did-finish-load', () => {
-    clearTimeout(forceShowTimer);
-  });
+  mainWindow.webContents.once('did-finish-load', () => clearTimeout(forceShowTimer));
 
-  // KEY FIX: handle load failures gracefully — show a reload page instead of black
+  // Handle load failures — show a friendly retry page
   mainWindow.webContents.on('did-fail-load', (_event, errCode, errDesc, validatedURL) => {
     console.error('[window] load failed:', errCode, errDesc, validatedURL);
-    clearTimeout(forceShowTimer);
-    closeSplash();
-
-    const retryHtml = `data:text/html;charset=utf-8,<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  body { background:#0d1117; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-         display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px; }
-  h2 { font-size:20px; font-weight:600; }
-  p { color:#6b7280; font-size:13px; }
-  button { background:#059669;color:#fff;border:none;border-radius:8px;padding:10px 24px;
-           font-size:14px;cursor:pointer;margin-top:8px; }
-  button:hover { background:#10b981; }
-  code { background:#1f2937;padding:2px 6px;border-radius:4px;font-size:12px;color:#34d399; }
-</style>
-</head>
-<body>
-  <h2>Manhattan RIP X is starting…</h2>
-  <p>The print server is still loading. This usually takes 5–10 seconds.</p>
-  <code>${appUrl}</code>
-  <button onclick="setTimeout(()=>location.reload(),1000)">Retry</button>
-</body>
-</html>`;
-
-    mainWindow.show();
-    mainWindow.loadURL(retryHtml);
-
-    // Auto-retry connecting to the backend every 2 seconds
-    const retryInterval = setInterval(() => {
-      http.get(`http://localhost:${SERVER_PORT}/api/health`, () => {
-        clearInterval(retryInterval);
-        mainWindow?.loadURL(appUrl);
-      }).on('error', () => {});
-    }, 2000);
+    // Only handle http:// failures (file:// should always work)
+    if (validatedURL && validatedURL.startsWith('http')) {
+      clearTimeout(forceShowTimer);
+      closeSplash();
+      mainWindow?.show();
+      mainWindow?.loadURL(fileUrl); // fall back to file:// UI
+    }
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
 
-  // Minimise to tray on Windows close button
   mainWindow.on('close', (event) => {
     if (IS_WIN && tray && !app.isQuitting) {
       event.preventDefault();
@@ -261,7 +238,6 @@ async function createWindow() {
     }
   });
 
-  // Block popups / new windows
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http') && !url.includes(`localhost:${SERVER_PORT}`)) {
       shell.openExternal(url);
@@ -269,20 +245,16 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
-  // Prevent navigation away
-  mainWindow.webContents.on('will-navigate', (event, navUrl) => {
-    try {
-      const parsed = new URL(navUrl);
-      // Allow data: URLs (used for splash/retry pages)
-      if (navUrl.startsWith('data:')) return;
-      if (parsed.hostname !== 'localhost' || parsed.port !== String(SERVER_PORT)) {
-        event.preventDefault();
-      }
-    } catch { event.preventDefault(); }
-  });
+  // ── Step 2: Load file:// first — UI appears instantly ────────────────────
+  mainWindow.loadURL(fileUrl);
 
-  // Now load the app — backend is already up (we waited before createWindow)
-  mainWindow.loadURL(appUrl);
+  // ── Step 3: Once backend is ready, switch to http:// for full API access ─
+  waitForBackend().then(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      console.log('[window] backend ready — switching to http://');
+      mainWindow.loadURL(appUrl);
+    }
+  });
 }
 
 // ── System tray ──────────────────────────────────────────────────────────────
@@ -619,8 +591,7 @@ app.whenReady().then(async () => {
   // Start backend
   startBackend();
 
-  // Wait for backend to be ready, then open main window
-  await waitForBackend();
+  // Open window immediately — it loads file:// first, switches to http:// when backend is ready
   await createWindow();
 
   // Tray (after window is created so we have the window reference)

@@ -4,7 +4,7 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { insertQueueSchema, insertJobSchema, insertPrintModeSchema, insertDeviceSchema } from "@shared/schema";
 import { ripJobWithTracking, cancelRip, isRipping } from "./rip";
-import { rezFix, bgRemove, halftone } from "./imageTools";
+import { rezFix, bgRemove, halftone, type RezFixerResult, type BgRemoveResult, type HalftoneResult } from "./imageTools";
 import { submitPrintJob, listPrinters, getPrinterStatus } from "./print";
 import { PRINTER_PROFILES, getProfileById } from "./printerProfiles";
 import { getHotFolderConfigs, startHotFolder, stopHotFolder, getShopifyConfig, setShopifyConfig, handleShopifyOrder, verifyShopifyHmac, setHotFolderConfigs } from "./hotFolder";
@@ -229,19 +229,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const job = storage.getJob(jobId);
     if (!job) return res.status(404).json({ error: "Job not found" });
 
-    // ── Trial gate ──────────────────────────────────────────────────────────
-    const licRaw = storage.getLicense() as import("./licenseServer").LicenseInfo | null;
-    const lic = validateLicense(licRaw);
-    if (lic.status === "trial") {
-      if (lic.trialJobsUsed >= lic.trialJobsLimit) {
-        return res.status(402).json({
-          error: "Trial limit reached",
-          message: `You have used all ${lic.trialJobsLimit} trial prints. Upgrade to Pro to continue.`,
-          upgradeUrl: "https://www.manhattanviral.com/mrx",
-        });
-      }
-      storage.incrementTrialJobs();
-    }
+    // PERSONAL BUILD: fully unlocked — no trial gate
 
     storage.updateJob(jobId, { status: "processing", ripProgress: 0 });
 

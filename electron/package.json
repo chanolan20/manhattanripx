@@ -1,8 +1,8 @@
 {
   "name": "manhattan-rip-x",
   "productName": "Manhattan RIP X",
-  "version": "2.0.0",
-  "description": "Manhattan RIP X \u2014 Professional DTF RIP Software for macOS",
+  "version": "2.1.0",
+  "description": "Manhattan RIP X \u2014 Professional DTF RIP Software for macOS and Windows",
   "main": "main.js",
   "author": {
     "name": "Manhattan RIP X",
@@ -16,7 +16,9 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
     "dist:dmg": "electron-builder --mac dmg",
+    "dist:nsis": "electron-builder --win nsis",
     "postinstall": "electron-builder install-app-deps"
   },
   "build": {
@@ -27,25 +29,59 @@
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**",
       "**/node_modules/bindings/**",
-      "resources/server/**"
+      "**/node_modules/file-uri-to-path/**",
+      "**/node_modules/prebuild-install/**",
+      "**/node_modules/detect-libc/**",
+      "**/node_modules/expand-template/**",
+      "**/node_modules/github-from-package/**",
+      "**/node_modules/minimist/**",
+      "**/node_modules/mkdirp-classic/**",
+      "**/node_modules/napi-build-utils/**",
+      "**/node_modules/node-abi/**",
+      "**/node_modules/semver/**",
+      "**/node_modules/pump/**",
+      "**/node_modules/end-of-stream/**",
+      "**/node_modules/once/**",
+      "**/node_modules/wrappy/**",
+      "**/node_modules/rc/**",
+      "**/node_modules/deep-extend/**",
+      "**/node_modules/ini/**",
+      "**/node_modules/strip-json-comments/**",
+      "**/node_modules/simple-get/**",
+      "**/node_modules/decompress-response/**",
+      "**/node_modules/mimic-response/**",
+      "**/node_modules/simple-concat/**",
+      "**/node_modules/tar-fs/**",
+      "**/node_modules/chownr/**",
+      "**/node_modules/tar-stream/**",
+      "**/node_modules/bl/**",
+      "**/node_modules/fs-constants/**",
+      "**/node_modules/tunnel-agent/**",
+      "**/node_modules/chokidar/**",
+      "**/node_modules/readdirp/**",
+      "**/node_modules/axios/**",
+      "**/node_modules/form-data/**"
     ],
     "files": [
       "main.js",
       "preload.js",
       "resources/**/*",
       "!resources/icons/ManhattanRIPX.iconset",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/electron/**",
+      "!node_modules/electron-builder/**",
+      "!node_modules/dmg-license/**"
     ],
     "extraResources": [
       {
-        "from": "../dist/public",
+        "from": "../dtf-rip/dist/public",
         "to": "public",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "../dist/index.cjs",
+        "from": "../dtf-rip/dist/index.cjs",
         "to": "server/index.cjs"
       }
     ],
@@ -61,19 +97,34 @@
         {
           "target": "dmg",
           "arch": [
-            "x64",
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "x64",
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],
-      "minimumSystemVersion": "12.0"
+      "minimumSystemVersion": "12.0",
+      "extendInfo": {
+        "NSPrintingUsageDescription": "Manhattan RIP X requires printing access to send jobs to your DTF printer.",
+        "NSCameraUsageDescription": "Manhattan RIP X does not use the camera.",
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Manhattan RIP X Job",
+            "CFBundleTypeExtensions": [
+              "mrxjob",
+              "dtf"
+            ],
+            "CFBundleTypeRole": "Editor",
+            "LSHandlerRank": "Owner"
+          }
+        ]
+      }
     },
     "dmg": {
       "title": "Manhattan RIP X ${version}",
@@ -81,31 +132,24 @@
       "iconSize": 128,
       "iconTextSize": 12,
       "window": {
-        "width": 540,
-        "height": 380
+        "width": 560,
+        "height": 400
       },
       "contents": [
         {
           "x": 140,
-          "y": 190,
+          "y": 210,
           "type": "file"
         },
         {
-          "x": 400,
-          "y": 190,
+          "x": 420,
+          "y": 210,
           "type": "link",
           "path": "/Applications"
         }
       ],
-      "internetEnabled": false
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "icon": "resources/icons",
-      "category": "Graphics"
+      "internetEnabled": false,
+      "background": "resources/dmg-background.png"
     },
     "win": {
       "target": [
@@ -118,17 +162,44 @@
       ],
       "icon": "resources/icons/icon.ico",
       "signAndEditExecutable": false,
-      "signDlls": false
+      "signDlls": false,
+      "fileAssociations": [
+        {
+          "ext": "mrxjob",
+          "name": "Manhattan RIP X Job",
+          "description": "Manhattan RIP X job file",
+          "icon": "resources/icons/icon.ico"
+        },
+        {
+          "ext": "dtf",
+          "name": "DTF Job File",
+          "description": "DTF print job",
+          "icon": "resources/icons/icon.ico"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "installerIcon": "resources/icons/icon.ico",
       "uninstallerIcon": "resources/icons/icon.ico",
       "installerHeaderIcon": "resources/icons/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Manhattan RIP X"
+      "shortcutName": "Manhattan RIP X",
+      "menuCategory": "Manhattan RIP X",
+      "include": "build/installer.nsh",
+      "warningsAsErrors": false,
+      "perMachine": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "resources/icons",
+      "category": "Graphics"
     },
     "directories": {
       "buildResources": "build",
@@ -140,5 +211,11 @@
     "dmg-license": "^1.0.11",
     "electron": "^34.5.8",
     "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "axios": "^1.16.1",
+    "better-sqlite3": "^11.10.0",
+    "chokidar": "^4.0.3",
+    "form-data": "^4.0.5"
   }
 }
