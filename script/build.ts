@@ -5,6 +5,7 @@ import { rm, readFile } from "fs/promises";
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
 const allowlist = [
+  // ── originally bundled ───────────────────────────────────
   "@google/generative-ai",
   "axios",
   "cors",
@@ -28,6 +29,41 @@ const allowlist = [
   "xlsx",
   "zod",
   "zod-validation-error",
+  // ── CRITICAL: must be inlined — not available in packaged app node_modules ──
+  // jimp and all its sub-packages (pure JS, safe to bundle)
+  "jimp",
+  "@jimp/core",
+  "@jimp/types",
+  "@jimp/plugins",
+  "@jimp/utils",
+  "@jimp/js-jpeg",
+  "@jimp/js-png",
+  "@jimp/js-bmp",
+  "@jimp/js-tiff",
+  "@jimp/js-gif",
+  "@jimp/plugin-resize",
+  "@jimp/plugin-crop",
+  "@jimp/plugin-rotate",
+  "@jimp/plugin-flip",
+  "@jimp/plugin-blit",
+  "@jimp/plugin-blur",
+  "@jimp/plugin-color",
+  "@jimp/plugin-contain",
+  "@jimp/plugin-cover",
+  "@jimp/plugin-displace",
+  "@jimp/plugin-dither",
+  "@jimp/plugin-fisheye",
+  "@jimp/plugin-mask",
+  "@jimp/plugin-print",
+  "@jimp/plugin-quantize",
+  "@jimp/plugin-scale",
+  "@jimp/plugin-shadow",
+  "@jimp/plugin-threshold",
+  // other pure-JS server deps that may not be in Electron node_modules
+  "ipp",
+  "form-data",
+  "i18next",
+  "i18next-http-middleware",
 ];
 
 async function buildAll() {
