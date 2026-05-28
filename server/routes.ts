@@ -328,6 +328,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(result);
   });
 
+  // ── DB health check + auto-repair (creates missing seed data) ────────────
+  app.get("/api/db/health", (_req, res) => {
+    try {
+      const devs  = storage.getDevices();
+      const pms   = storage.getPrintModes();
+      const qs    = storage.getQueues();
+      res.json({
+        ok: true,
+        devices: devs.length,
+        printModes: pms.length,
+        queues: qs.length,
+        hasEpsonET8550: devs.some(d => d.name.includes("ET-8550")),
+      });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, error: e.message });
+    }
+  });
+
   // ── Stripe webhook — issue license key after successful payment ───────────
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), (req, res) => {
     const sig = req.headers["stripe-signature"] as string;
@@ -376,6 +394,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const d = storage.getDevice(Number(req.params.id));
     if (!d) return res.status(404).json({ error: "Not found" });
     res.json(d);
+  });
+  // CREATE a new device / printer
+  app.post("/api/devices", (req, res) => {
+    try {
+      const body = req.body as any;
+      const dev = storage.createDevice({
+        name:        body.name        || "Epson ET-8550 DTF",
+        model:       body.model       || "Epson EcoTank ET-8550 DTF",
+        driver:      body.driver      || "GDIPSRW",
+        status:      body.status      || "online",
+        connection:  body.connection  || "USB",
+        paperWidth:  body.paperWidth  ?? 13.0,
+        inkChannels: body.inkChannels || '["C","M","Y","K","W"]',
+        port:        body.port        || "USB001",
+      });
+      res.status(201).json(dev);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+  // DELETE a device
+  app.delete("/api/devices/:id", (req, res) => {
+    try {
+      storage.deleteDevice(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
   app.patch("/api/devices/:id", (req, res) => {
     const d = storage.updateDevice(Number(req.params.id), req.body);

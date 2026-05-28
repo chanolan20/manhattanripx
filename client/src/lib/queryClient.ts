@@ -52,8 +52,10 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
+      staleTime: 30_000,
+      // Retry once after 1s — handles race between Electron window load and server start
+      retry: 1,
+      retryDelay: 1000,
     },
     mutations: {
       retry: false,

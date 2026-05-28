@@ -496,6 +496,7 @@ export interface IStorage {
   getDevice(id: number): Device | undefined;
   createDevice(d: InsertDevice): Device;
   updateDevice(id: number, d: Partial<InsertDevice>): Device | undefined;
+  deleteDevice(id: number): void;
   getPrintModes(deviceId?: number): PrintMode[];
   getPrintMode(id: number): PrintMode | undefined;
   createPrintMode(pm: InsertPrintMode): PrintMode;
@@ -530,6 +531,10 @@ class DatabaseStorage implements IStorage {
   updateDevice(id: number, d: Partial<InsertDevice>) {
     const r = _db.update(devices).set(d).where(eq(devices.id, id)).returning().get();
     persistDb(); return r;
+  }
+  deleteDevice(id: number) {
+    _db.delete(devices).where(eq(devices.id, id)).run();
+    persistDb();
   }
 
   getPrintModes(deviceId?: number) {

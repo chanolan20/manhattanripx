@@ -27,6 +27,7 @@ import ManageQueuesDialog from "@/components/ManageQueuesDialog";
 import OnboardingChecklist, { useShowOnboarding } from "@/components/OnboardingChecklist";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Settings, Shield, ShieldCheck } from "lucide-react";
+import PanelErrorBoundary from "@/components/PanelErrorBoundary";
 
 export type ActiveView =
   | "queue"
@@ -418,27 +419,59 @@ export default function MainApp() {
           </>
         )}
 
-        {/* Tool views */}
+        {/* Tool views — each wrapped in an error boundary so crashes show a retry button */}
         {activeView === "gang-sheet" && (
-          <GangSheetBuilder queue={activeQueue} jobs={jobs} onUpdate={(id, data) => updateJobMutation.mutate({ id, data })} />
+          <PanelErrorBoundary name="Gang Sheet Builder">
+            <GangSheetBuilder queue={activeQueue} jobs={jobs} onUpdate={(id, data) => updateJobMutation.mutate({ id, data })} />
+          </PanelErrorBoundary>
         )}
         {activeView === "nesting" && (
-          <NestingPreview queue={activeQueue} jobs={jobs} />
+          <PanelErrorBoundary name="Nesting Preview">
+            <NestingPreview queue={activeQueue} jobs={jobs} />
+          </PanelErrorBoundary>
         )}
-        {activeView === "hot-folder" && <HotFolderPanel />}
-        {activeView === "separation-studio" && <SeparationStudio />}
-        {activeView === "auto-profiler" && <AutoProfilerPanel />}
+        {activeView === "hot-folder" && (
+          <PanelErrorBoundary name="Hot Folder">
+            <HotFolderPanel />
+          </PanelErrorBoundary>
+        )}
+        {activeView === "separation-studio" && (
+          <PanelErrorBoundary name="Separation Studio">
+            <SeparationStudio />
+          </PanelErrorBoundary>
+        )}
+        {activeView === "auto-profiler" && (
+          <PanelErrorBoundary name="AI Profiler">
+            <AutoProfilerPanel />
+          </PanelErrorBoundary>
+        )}
         {activeView === "image-tools" && (
-          <ImageToolsPanel queue={activeQueue} jobs={jobs} selectedJob={selectedJob}
-            onUpdate={(id, data) => updateJobMutation.mutate({ id, data })} />
+          <PanelErrorBoundary name="Image Tools">
+            <ImageToolsPanel queue={activeQueue} jobs={jobs} selectedJob={selectedJob}
+              onUpdate={(id, data) => updateJobMutation.mutate({ id, data })} />
+          </PanelErrorBoundary>
         )}
         {activeView === "print-cut" && (
-          <PrintCutManager queue={activeQueue} jobs={jobs} selectedJob={selectedJob}
-            onUpdate={(id, data) => updateJobMutation.mutate({ id, data })} />
+          <PanelErrorBoundary name="Print &amp; Cut">
+            <PrintCutManager queue={activeQueue} jobs={jobs} selectedJob={selectedJob}
+              onUpdate={(id, data) => updateJobMutation.mutate({ id, data })} />
+          </PanelErrorBoundary>
         )}
-        {activeView === "devices" && <DeviceStatus device={device} />}
-        {activeView === "color" && <ColorManagement />}
-        {activeView === "print-modes" && <PrintModeManager deviceId={device?.id || 1} />}
+        {activeView === "devices" && (
+          <PanelErrorBoundary name="Devices">
+            <DeviceStatus device={device} />
+          </PanelErrorBoundary>
+        )}
+        {activeView === "color" && (
+          <PanelErrorBoundary name="Color Management">
+            <ColorManagement />
+          </PanelErrorBoundary>
+        )}
+        {activeView === "print-modes" && (
+          <PanelErrorBoundary name="Print Modes">
+            <PrintModeManager deviceId={device?.id || 1} />
+          </PanelErrorBoundary>
+        )}
         {activeView === "settings" && (
           <div className="flex-1 overflow-auto"><SettingsPage onClose={() => setActiveView("queue")} /></div>
         )}
