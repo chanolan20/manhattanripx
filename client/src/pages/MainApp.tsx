@@ -3,7 +3,7 @@
  * Full DFv12-equivalent layout with all features wired.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Queue, Job, Device } from "@shared/schema";
@@ -111,6 +111,30 @@ export default function MainApp() {
   const [showColorAdjForJob, setShowColorAdjForJob]     = useState(false);
   const { toast } = useToast();
   const { show: showOnboarding, dismiss: dismissOnboarding } = useShowOnboarding();
+
+  // ── Startup: call /api/db/health to auto-repair DB (seed device + queue if missing)
+  useEffect(() => {
+    const repair = async () => {
+      try {
+        const eAPI = (window as any).electronAPI;
+        const port = 5000;
+        const base = eAPI?.isElectron
+          ? `http://localhost:${port}`
+          : (window.location.origin.startsWith('file:') ? `http://localhost:${port}` : '');
+        const res = await fetch(`${base}/api/db/health`);
+        if (res.ok) {
+          // Refresh device + queue queries after repair
+          queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/queues"] });
+        }
+      } catch (_) { /* server not ready yet, that's fine */ }
+    };
+    // Run immediately, then again after 2s to catch server startup delay
+    repair();
+    const t = setTimeout(repair, 2000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Data queries ───────────────────────────────────────────────────────────
   const { data: queues = [] } = useQuery<Queue[]>({ queryKey: ["/api/queues"] });
@@ -396,6 +420,7 @@ export default function MainApp() {
                 onReleaseJob={(id) => updateJobMutation.mutate({ id, data: { status: "pending" } })}
                 onPrintJob={(id) => printJobMutation.mutate(id)}
                 onDrop={handleDrop}
+                onBrowse={handleOpenJob}
                 onUpdateJob={(id, data) => updateJobMutation.mutate({ id, data })}
               />
             </div>

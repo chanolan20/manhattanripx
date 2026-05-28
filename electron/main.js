@@ -91,6 +91,28 @@ function startBackend() {
     require(serverBin);
     backendProcess = { pid: process.pid }; // sentinel — server is running in-process
     console.log('[backend] server loaded in-process on port', SERVER_PORT);
+
+    // ── Auto-repair DB on every startup ────────────────────────────────────────────────────
+    // Ensures Epson ET-8550 device and Production Queue always exist,
+    // even on old installs that had a broken DB from earlier versions.
+    setTimeout(async () => {
+      try {
+        const http = require('http');
+        const req = http.get(`http://localhost:${SERVER_PORT}/api/db/health`, (r) => {
+          let body = '';
+          r.on('data', d => body += d);
+          r.on('end', () => {
+            try {
+              const health = JSON.parse(body);
+              console.log('[db-repair] health:', JSON.stringify(health));
+            } catch (_) {}
+          });
+        });
+        req.on('error', (e) => console.log('[db-repair] health check failed:', e.message));
+      } catch (e) {
+        console.log('[db-repair] exception:', e.message);
+      }
+    }, 2500); // wait 2.5s for server to fully initialize
   } catch (err) {
     console.error('[backend] failed to load:', err);
     // Show error dialog so user knows what happened

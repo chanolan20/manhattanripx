@@ -331,15 +331,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── DB health check + auto-repair (creates missing seed data) ────────────
   app.get("/api/db/health", (_req, res) => {
     try {
-      const devs  = storage.getDevices();
+      let devs  = storage.getDevices();
       const pms   = storage.getPrintModes();
-      const qs    = storage.getQueues();
+      let qs    = storage.getQueues();
+
+      // Auto-repair: if no devices, seed Epson ET-8550
+      if (devs.length === 0) {
+        storage.createDevice({
+          name: "Epson ET-8550 DTF",
+          model: "Epson EcoTank ET-8550 (DTF Modified)",
+          driver: "GDIPSRW",
+          status: "online",
+          connection: "USB",
+          paperWidth: 13.0,
+          inkChannels: '["C","M","Y","K","W"]',
+          port: "USB001",
+        });
+        devs = storage.getDevices();
+      }
+
+      // Auto-repair: if no queues, seed Production Queue
+      if (qs.length === 0) {
+        storage.createQueue({
+          name: "Production Queue",
+          status: "idle",
+          deviceId: devs[0]?.id ?? 1,
+          printModeId: null,
+          substrate: "#1a1a2e",
+        });
+        qs = storage.getQueues();
+      }
+
       res.json({
         ok: true,
         devices: devs.length,
         printModes: pms.length,
         queues: qs.length,
         hasEpsonET8550: devs.some(d => d.name.includes("ET-8550")),
+        repaired: true,
       });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e.message });

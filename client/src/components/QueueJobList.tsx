@@ -35,6 +35,7 @@ interface Props {
   onReleaseJob: (id: number) => void;
   onPrintJob: (id: number) => void;
   onDrop: (files: File[]) => void;
+  onBrowse?: () => void;  // open file dialog
   onUpdateJob?: (id: number, data: Partial<Job>) => void;
 }
 
@@ -91,7 +92,7 @@ function JobThumbnail({ job }: { job: Job }) {
 
 export default function QueueJobList({
   queue, jobs, selectedJobId, onSelectJob,
-  onDeleteJob, onHoldJob, onReleaseJob, onPrintJob, onDrop, onUpdateJob,
+  onDeleteJob, onHoldJob, onReleaseJob, onPrintJob, onDrop, onBrowse, onUpdateJob,
 }: Props) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"status" | "name" | "time">("status");
@@ -211,11 +212,22 @@ export default function QueueJobList({
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Empty state — shows clickable upload button */}
         {activeJobs.length === 0 && !isDragActive && (
-          <div className="flex flex-col items-center justify-center h-32 text-center">
-            <Upload className="w-6 h-6 text-muted-foreground/30 mb-2" />
-            <p className="text-xs text-muted-foreground/60">Drop print files here</p>
+          <div className="flex flex-col items-center justify-center h-36 text-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-muted/30 border border-dashed border-border flex items-center justify-center">
+              <Upload className="w-5 h-5 text-muted-foreground/50" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">No jobs in queue</p>
+              <p className="text-[10px] text-muted-foreground/50 mt-0.5">Drag &amp; drop files here, or click Add Files</p>
+            </div>
+            <button
+              className="text-[11px] px-3 py-1.5 rounded border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+              onClick={e => { e.stopPropagation(); onBrowse?.(); }}
+            >
+              + Add Files (PNG · JPG · TIFF · PDF)
+            </button>
           </div>
         )}
 
@@ -267,7 +279,7 @@ export default function QueueJobList({
           </span>
           <button
             className="text-[10px] px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors"
-            onClick={e => { e.stopPropagation(); /* Browse */ }}
+            onClick={e => { e.stopPropagation(); onBrowse?.(); }}
           >
             Browse
           </button>
