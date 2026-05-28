@@ -115,7 +115,7 @@ export default function HotFolderPanel() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const webhookUrl = `${window.location.origin.replace(/:\d+$/, ":5000")}/api/webhooks/shopify`;
+  const webhookUrl = `${(window as any).__PORT_5000__ || "http://localhost:5000"}/api/webhooks/shopify`;
 
   return (
     <div className="flex-1 overflow-auto p-6 space-y-6">

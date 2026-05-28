@@ -2,6 +2,11 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Inject the server port so ALL fetch calls in the renderer work whether
+// the page loaded via file:// or http://localhost:5000
+// Components using (window as any).__PORT_5000__ || "" will get the right base URL.
+window.__PORT_5000__ = 'http://localhost:5000';
+
 // ── Expose safe API to the renderer process ────────────────────────────────
 // All channels are white-listed here — the renderer has zero direct Node access.
 contextBridge.exposeInMainWorld('electronAPI', {

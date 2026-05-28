@@ -1,9 +1,12 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// In Electron, the app loads from http://localhost:5000 so all API calls are relative.
-// In dev (Vite HMR), the vite proxy handles /api → :5000 so relative also works.
-// We never need an absolute base — just use relative paths everywhere.
-const API_BASE = "";
+// When loaded via file:// (Electron startup before backend is ready, or first-load),
+// relative fetch() calls go nowhere. Detect this and use the absolute localhost URL.
+// Once the window switches to http://localhost:5000, relative paths work fine too.
+const API_BASE =
+  typeof window !== "undefined" && window.location.protocol === "file:"
+    ? "http://localhost:5000"
+    : "";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {

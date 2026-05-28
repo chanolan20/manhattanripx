@@ -45,6 +45,9 @@ let tray          = null;
 let spoolerPoll   = null;
 
 // ── Backend launcher ─────────────────────────────────────────────────────────
+// Runs the Express server IN-PROCESS (same Node runtime as Electron main).
+// This is the only reliable cross-platform approach — spawning process.execPath
+// on Windows launches another Electron window instead of running Node.
 function startBackend() {
   if (backendProcess) return;
 
@@ -52,27 +55,32 @@ function startBackend() {
     ? path.join(__dirname, '..', 'dist', 'index.cjs')
     : path.join(process.resourcesPath, 'server', 'index.cjs');
 
-  console.log('[backend] Starting:', serverBin);
+  console.log('[backend] Loading in-process:', serverBin);
 
-  backendProcess = spawn(process.execPath, [serverBin], {
-    env: {
-      ...process.env,
-      NODE_ENV:       'production',
-      PORT:           String(SERVER_PORT),
-      DB_PATH:        path.join(app.getPath('userData'), 'manhattan-rip-x.db'),
-      UPLOADS_DIR:    path.join(app.getPath('userData'), 'uploads'),
-      PUBLIC_PATH:    path.join(process.resourcesPath, 'public'),
-      RESOURCES_PATH: process.resourcesPath,
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  // Set env vars before requiring — the CJS bundle reads process.env at startup
+  process.env.NODE_ENV       = 'production';
+  process.env.PORT           = String(SERVER_PORT);
+  process.env.DB_PATH        = path.join(app.getPath('userData'), 'manhattan-rip-x.db');
+  process.env.UPLOADS_DIR    = path.join(app.getPath('userData'), 'uploads');
+  process.env.PUBLIC_PATH    = IS_DEV
+    ? path.join(__dirname, '..', 'dist', 'public')
+    : path.join(process.resourcesPath, 'public');
+  process.env.RESOURCES_PATH = IS_DEV
+    ? path.join(__dirname, '..', 'dist')
+    : process.resourcesPath;
 
-  backendProcess.stdout.on('data', d => console.log('[backend]', d.toString().trim()));
-  backendProcess.stderr.on('data', d => console.error('[backend:err]', d.toString().trim()));
-  backendProcess.on('exit', code => {
-    console.log('[backend] exited', code);
-    backendProcess = null;
-  });
+  try {
+    require(serverBin);
+    backendProcess = { pid: process.pid }; // sentinel — server is running in-process
+    console.log('[backend] server loaded in-process on port', SERVER_PORT);
+  } catch (err) {
+    console.error('[backend] failed to load:', err);
+    // Show error dialog so user knows what happened
+    dialog.showErrorBox(
+      'Manhattan RIP X — Server Error',
+      `The print server failed to start.\n\nError: ${err.message}\n\nPath: ${serverBin}`
+    );
+  }
 }
 
 // ── Wait for backend ─────────────────────────────────────────────────────────
@@ -681,5 +689,6 @@ app.on('before-quit', () => {
   app.isQuitting = true;
   if (spoolerPoll) { clearInterval(spoolerPoll); spoolerPoll = null; }
   if (tray)        { tray.destroy(); tray = null; }
-  if (backendProcess) { backendProcess.kill('SIGTERM'); backendProcess = null; }
+  // Backend runs in-process — no child process to kill
+  backendProcess = null;
 });
