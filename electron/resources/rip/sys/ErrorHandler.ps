@@ -1,0 +1,18 @@
+%!PS-Adobe-3.0
+%%Title: CADlink Error Handler
+%%Creator: Manhattan RIP X
+%%EndComments
+
+/handleerror {
+  $error /newerror false put
+  $error /errorname get
+  (CADlink RIP Error: ) print
+  dup =string cvs print
+  ( in ) print
+  $error /command get =string cvs print
+  (
+) print
+  flush
+} def
+
+%%EOF

@@ -1,0 +1,22 @@
+%!PS-Adobe-3.0
+%%Title: CADlink Page Device Definitions
+%%Creator: Manhattan RIP X
+%%EndComments
+
+% Standard page sizes
+/PageSizes <<
+  /Letter    [612 792]
+  /A4        [595 842]
+  /A3        [842 1191]
+  /Tabloid   [792 1224]
+  /Legal     [612 1008]
+  /Custom    [0 0]
+>> def
+
+% Set page size by name
+/SetPageSize {
+  PageSizes exch get
+  << /PageSize 3 -1 roll /ImagingBBox null >> setpagedevice
+} def
+
+%%EOF

@@ -1,0 +1,19 @@
+%!PS-Adobe-3.0
+%%Title: CADlink Font Utilities
+%%Creator: Manhattan RIP X
+%%EndComments
+
+% Font encoding utilities
+/ReEncodeFont {
+  /NewEncoding exch def
+  /FontName exch def
+  FontName findfont
+  dup length dict begin
+    {1 index /FID ne {def} {pop pop} ifelse} forall
+    /Encoding NewEncoding def
+    currentdict
+  end
+  FontName exch definefont pop
+} def
+
+%%EOF

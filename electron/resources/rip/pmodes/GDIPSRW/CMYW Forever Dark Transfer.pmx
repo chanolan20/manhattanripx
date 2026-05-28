@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PrintMode version="2.0">
+  <Engine name="GDI PostScript RW"/>
+  <ColorSpace name="CMYK"/>
+  <BitDepth value="8"/>
+  <Channels value="4"/>
+  <Param name="colorspace" value="CMYK"/>
+  <Param name="bits" value="8"/>
+  <Param name="channels" value="4"/>
+  <Param name="engine" value="GDI PostScript RW"/>
+  <Param name="white" value="true"/>
+  <Param name="mode" value="DTF"/>
+  <Param name="rendering" value="Photographic"/>
+</PrintMode>

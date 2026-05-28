@@ -1,0 +1,21 @@
+%!PS-Adobe-3.0
+%%Title: CADlink RIP Server Bootstrap
+%%Creator: Manhattan RIP X
+%%EndComments
+
+% Server initialization PostScript
+/CADlinkRIPServer 1 dict def
+CADlinkRIPServer begin
+  /Version (2.1.0) def
+  /MaxJobs 256 def
+  /DefaultColorSpace /CMYK def
+  /DefaultResolution 600 def
+  /SupportedColorSpaces [/CMYK /RGB /Gray /Lab] def
+end
+
+% Load system dictionaries
+systemdict begin
+  /RIPServerReady true def
+end
+
+%%EOF

@@ -1,0 +1,13 @@
+%!PS-Adobe-3.0
+%%Title: CADlink Filter Definitions
+%%Creator: Manhattan RIP X
+%%EndComments
+
+% Image filter procedures
+/ASCIIHexDecode where { pop } { /ASCIIHexDecode /filter load def } ifelse
+/ASCII85Decode  where { pop } { /ASCII85Decode  /filter load def } ifelse
+/LZWDecode      where { pop } { /LZWDecode      /filter load def } ifelse
+/FlateDecode    where { pop } { /FlateDecode    /filter load def } ifelse
+/RunLengthDecode where { pop } { /RunLengthDecode /filter load def } ifelse
+
+%%EOF

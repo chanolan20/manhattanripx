@@ -1,0 +1,23 @@
+%!PS-Adobe-3.0
+%%Title: CADlink ICC Color Management
+%%Creator: Manhattan RIP X
+%%EndComments
+
+% ICC-based color space procedures
+/LoadICCProfile {
+  /ProfilePath exch def
+  ProfilePath (r) file
+  /ICCData exch def
+} def
+
+/SetICCColorSpace {
+  /ProfileData exch def
+  /NumComponents exch def
+  [/ICCBased NumComponents dict dup
+    /N NumComponents put
+    /DataSource ProfileData put
+  ]
+  setcolorspace
+} def
+
+%%EOF

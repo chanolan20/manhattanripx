@@ -1,0 +1,42 @@
+%!PS-Adobe-3.0
+%%Title: CADlink System Dictionary
+%%Creator: Manhattan RIP X
+%%EndComments
+
+% CADlink system dictionary definitions
+/CADlinkSystemDict 50 dict def
+CADlinkSystemDict begin
+
+  % Color management procedures
+  /SetCMYK { setcmykcolor } def
+  /SetRGB  { setrgbcolor  } def
+  /SetGray { setgray      } def
+
+  % Image rendering procedures
+  /RenderImage {
+    /ImgHeight exch def
+    /ImgWidth  exch def
+    /ImgData   exch def
+    ImgWidth ImgHeight 8
+    [ImgWidth 0 0 ImgHeight neg 0 ImgHeight]
+    ImgData image
+  } def
+
+  % Halftone procedures
+  /SetHalftone {
+    /Frequency exch def
+    /Angle     exch def
+    << /HalftoneType 1
+       /Frequency    Frequency
+       /Angle        Angle
+       /SpotFunction { dup mul exch dup mul add 1 exch sub } >>
+    sethalftone
+  } def
+
+  % Page procedures
+  /BeginPage { erasepage initgraphics } def
+  /EndPage   { showpage } def
+
+end % CADlinkSystemDict
+
+%%EOF

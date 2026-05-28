@@ -820,6 +820,58 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ modes: tac, globalTacDefault: 320 });
   });
 
+  // ── RIP Resources (DFv12-compatible bundle) ────────────────────────────────────
+  app.get("/api/rip-resources", (_req, res) => {
+    const fs   = require('fs');
+    const path = require('path');
+    const ripPath = process.env.RIP_RESOURCES_PATH || '';
+
+    const listDir = (subdir: string): string[] => {
+      const full = path.join(ripPath, subdir);
+      try {
+        return fs.readdirSync(full).filter((f: string) => !f.startsWith('.'));
+      } catch { return []; }
+    };
+
+    res.json({
+      ripResourcesPath: ripPath,
+      available: !!ripPath && fs.existsSync(ripPath),
+      pmodes: {
+        BMP:      listDir('pmodes/BMP'),
+        GDIPOSTS: listDir('pmodes/GDIPOSTS'),
+        GDIPRT:   listDir('pmodes/GDIPRT'),
+        GDIPSRW:  listDir('pmodes/GDIPSRW'),
+        GDISEPS:  listDir('pmodes/GDISEPS'),
+        NULLPIE:  listDir('pmodes/NULLPIE'),
+        TIFFPREV: listDir('pmodes/TIFFPREV'),
+      },
+      printers:     listDir('Printers'),
+      outputProfiles: listDir('Profiles'),
+      systemClinks:   listDir('system/clinks'),
+      devicelinks:    listDir('clinks/Devicelinks'),
+      easyColorAdj:   listDir('EasyColorAdj'),
+      pieEngines:     listDir('system/pie'),
+      psSystem:       listDir('sys'),
+    });
+  });
+
+  app.get("/api/rip-resources/profile", (req, res) => {
+    const fs   = require('fs');
+    const path = require('path');
+    const { subdir, name } = req.query as { subdir?: string; name?: string };
+    if (!subdir || !name) return res.status(400).json({ error: 'subdir and name required' });
+    const ripPath = process.env.RIP_RESOURCES_PATH || '';
+    const filePath = path.join(ripPath, subdir, name);
+    // Security: ensure path is within ripPath
+    if (!filePath.startsWith(ripPath)) return res.status(403).json({ error: 'forbidden' });
+    try {
+      const data = fs.readFileSync(filePath);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+      res.send(data);
+    } catch { res.status(404).json({ error: 'profile not found' }); }
+  });
+
   // ── Halftone Config ───────────────────────────────────────────────────────────
   app.get("/api/halftone-config", (_req, res) => {
     const modes = storage.getPrintModes();

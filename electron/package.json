@@ -2,7 +2,7 @@
   "name": "manhattan-rip-x",
   "productName": "Manhattan RIP X",
   "version": "2.1.0",
-  "description": "Manhattan RIP X — Professional DTF RIP Software for macOS and Windows",
+  "description": "Manhattan RIP X \u2014 Professional DTF RIP Software for macOS and Windows",
   "main": "main.js",
   "author": {
     "name": "Manhattan RIP X",
@@ -24,7 +24,7 @@
   "build": {
     "appId": "com.manhattanripx.app",
     "productName": "Manhattan RIP X",
-    "copyright": "© 2026 Manhattan RIP X",
+    "copyright": "\u00a9 2026 Manhattan RIP X",
     "asar": true,
     "asarUnpack": [
       "**/node_modules/bindings/**",
@@ -55,6 +55,13 @@
       {
         "from": "../dtf-rip/dist/sql-wasm.wasm",
         "to": "server/sql-wasm.wasm"
+      },
+      {
+        "from": "resources/rip",
+        "to": "rip",
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {

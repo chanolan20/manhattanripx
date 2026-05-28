@@ -1,0 +1,26 @@
+%!PS-Adobe-3.0
+%%Title: CADlink Halftone Definitions
+%%Creator: Manhattan RIP X
+%%EndComments
+
+% Standard halftone screens for DTF printing
+/HT_Standard <<
+  /HalftoneType 5
+  /Cyan    << /HalftoneType 1 /Frequency 150 /Angle  15 /SpotFunction {180 mul cos exch 180 mul cos add 2 div} >>
+  /Magenta << /HalftoneType 1 /Frequency 150 /Angle  75 /SpotFunction {180 mul cos exch 180 mul cos add 2 div} >>
+  /Yellow  << /HalftoneType 1 /Frequency 150 /Angle   0 /SpotFunction {180 mul cos exch 180 mul cos add 2 div} >>
+  /Black   << /HalftoneType 1 /Frequency 150 /Angle  45 /SpotFunction {180 mul cos exch 180 mul cos add 2 div} >>
+  /Default << /HalftoneType 1 /Frequency 150 /Angle   0 /SpotFunction {180 mul cos exch 180 mul cos add 2 div} >>
+>> def
+
+% High resolution halftone for DTF
+/HT_HighRes <<
+  /HalftoneType 5
+  /Cyan    << /HalftoneType 1 /Frequency 200 /Angle  15 /SpotFunction {dup mul exch dup mul add 1 exch sub} >>
+  /Magenta << /HalftoneType 1 /Frequency 200 /Angle  75 /SpotFunction {dup mul exch dup mul add 1 exch sub} >>
+  /Yellow  << /HalftoneType 1 /Frequency 200 /Angle   0 /SpotFunction {dup mul exch dup mul add 1 exch sub} >>
+  /Black   << /HalftoneType 1 /Frequency 200 /Angle  45 /SpotFunction {dup mul exch dup mul add 1 exch sub} >>
+  /Default << /HalftoneType 1 /Frequency 200 /Angle   0 /SpotFunction {dup mul exch dup mul add 1 exch sub} >>
+>> def
+
+%%EOF

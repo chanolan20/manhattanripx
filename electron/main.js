@@ -79,6 +79,15 @@ function startBackend() {
     process.env.WASM_PATH = wasmPath;
     console.log('[backend] sql-wasm.wasm path:', wasmPath);
 
+    // ── RIP resources path ─────────────────────────────────────────────────────
+    // All DFv12-compatible RIP resources (pmodes, PPD/PDX, ICC/ICM, PIE, PS)
+    // are bundled at resources/rip/ in the packaged app.
+    const ripResourcesPath = IS_DEV
+      ? path.join(__dirname, 'resources', 'rip')
+      : path.join(process.resourcesPath, 'rip');
+    process.env.RIP_RESOURCES_PATH = ripResourcesPath;
+    console.log('[backend] RIP resources path:', ripResourcesPath);
+
     require(serverBin);
     backendProcess = { pid: process.pid }; // sentinel — server is running in-process
     console.log('[backend] server loaded in-process on port', SERVER_PORT);

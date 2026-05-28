@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PrintMode version="2.0">
+  <Engine name="GDI Printer"/>
+  <ColorSpace name="RGB"/>
+  <BitDepth value="8"/>
+  <Channels value="3"/>
+  <Param name="colorspace" value="RGB"/>
+  <Param name="bits" value="8"/>
+  <Param name="channels" value="3"/>
+  <Param name="engine" value="GDI Printer"/>
+  <Param name="profile" value="Cadlink RGB"/>
+</PrintMode>

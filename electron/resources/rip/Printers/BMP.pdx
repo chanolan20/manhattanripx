@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PrinterExtension version="1.0">
+  <Printer name="BMP Output" short="BMP"/>
+  <Engine name="BMP"/>
+  <Description>BMP File Output</Description>
+  <Capabilities>
+    <ColorSpaces>
+      <ColorSpace name="CMYK"/>
+      <ColorSpace name="RGB"/>
+    </ColorSpaces>
+    <Resolutions>
+      <Resolution value="300"/>
+      <Resolution value="600"/>
+      <Resolution value="720"/>
+      <Resolution value="1200"/>
+    </Resolutions>
+    <Features>
+      <Feature name="WhiteInk" supported="true"/>
+      <Feature name="DTF" supported="true"/>
+      <Feature name="Halftone" supported="true"/>
+    </Features>
+  </Capabilities>
+</PrinterExtension>
