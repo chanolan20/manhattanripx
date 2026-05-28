@@ -70,6 +70,34 @@ function startBackend() {
     : process.resourcesPath;
 
   try {
+    // ── Critical: make native modules in app.asar.unpacked resolvable ──────────
+    // index.cjs lives in resources/server/ but better-sqlite3 and other native
+    // modules are in resources/app.asar.unpacked/node_modules/.
+    // Node's module resolver won't find them unless we add the path explicitly.
+    const Module = require('module');
+    const unpackedModules = IS_DEV
+      ? path.join(__dirname, 'node_modules')
+      : path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules');
+    // Prepend so it takes priority over any other node_modules lookup
+    if (!Module.globalPaths.includes(unpackedModules)) {
+      Module.globalPaths.unshift(unpackedModules);
+    }
+    // Also patch the server bin's own directory paths
+    const serverDir = path.dirname(serverBin);
+    const serverNodeModules = path.join(serverDir, 'node_modules');
+    const fs = require('fs');
+    // Create a node_modules symlink/junction next to index.cjs if not there
+    if (!fs.existsSync(serverNodeModules)) {
+      try {
+        fs.symlinkSync(unpackedModules, serverNodeModules, IS_WIN ? 'junction' : 'dir');
+        console.log('[backend] created node_modules junction:', serverNodeModules);
+      } catch (symlinkErr) {
+        // symlink failed (permissions) — fall back to Module.globalPaths only
+        console.warn('[backend] symlink failed, using globalPaths only:', symlinkErr.message);
+      }
+    }
+    console.log('[backend] module path:', unpackedModules);
+
     require(serverBin);
     backendProcess = { pid: process.pid }; // sentinel — server is running in-process
     console.log('[backend] server loaded in-process on port', SERVER_PORT);
