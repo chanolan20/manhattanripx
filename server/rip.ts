@@ -150,8 +150,16 @@ export async function ripFile(
   try {
     img = await Jimp.read(workingPath);
   } catch (e) {
-    console.warn("[RIP] Could not read image:", e);
-    return buildPlaceholderResult(filePath, opts, dpi, Date.now() - start);
+    console.warn("[RIP] Jimp.read failed for", workingPath, ":", (e as any)?.message);
+    // Try reading as raw buffer and re-parsing
+    try {
+      const rawBuf = fs.readFileSync(workingPath);
+      img = await Jimp.read(rawBuf as any);
+      console.log("[RIP] Fallback buffer read succeeded:", img?.bitmap?.width, 'x', img?.bitmap?.height);
+    } catch (e2) {
+      console.warn("[RIP] Buffer read also failed:", (e2 as any)?.message);
+      return buildPlaceholderResultAsync(filePath, opts, dpi, Date.now() - start);
+    }
   }
 
   const pixelWidth  = img.bitmap.width;
@@ -304,9 +312,37 @@ export async function ripFile(
   };
 }
 
-function buildPlaceholderResult(filePath: string, opts: any, dpi: number, ms: number): RipResult {
+async function buildPlaceholderResultAsync(filePath: string, opts: any, dpi: number, ms: number): Promise<RipResult> {
+  // Build a visible 200x200 gray placeholder image using Jimp directly
+  let previewBase64 = "";
+  try {
+    const pw = Math.min(400, Math.max(50, Math.round(opts.widthInches * dpi * 0.1)));
+    const ph = Math.min(400, Math.max(50, Math.round(opts.heightInches * dpi * 0.1)));
+    const thumb = new Jimp({ width: pw, height: ph, color: 0x3a3a4aff });
+    const buf = await thumb.getBuffer("image/png");
+    previewBase64 = `data:image/png;base64,${buf.toString("base64")}`;
+  } catch {
+    // absolute last resort: tiny valid 1x1 gray png
+    previewBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg==";
+  }
   return {
-    previewBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    previewBase64,
+    pixelWidth:  Math.round(opts.widthInches  * dpi),
+    pixelHeight: Math.round(opts.heightInches * dpi),
+    dpi,
+    inkCoverage: { C: 25, M: 20, Y: 15, K: 10, W: 80, total: 70 },
+    inkCost: 0.05,
+    cmykSeparation: { cyan: 25, magenta: 20, yellow: 15, black: 10 },
+    whiteChannelCoverage: 80,
+    fileSize: fs.existsSync(filePath) ? fs.statSync(filePath).size : 0,
+    processingTimeMs: ms,
+  };
+}
+
+function buildPlaceholderResult(filePath: string, opts: any, dpi: number, ms: number): RipResult {
+  // Sync fallback (used before async init)
+  return {
+    previewBase64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg==",
     pixelWidth:  Math.round(opts.widthInches  * dpi),
     pixelHeight: Math.round(opts.heightInches * dpi),
     dpi,

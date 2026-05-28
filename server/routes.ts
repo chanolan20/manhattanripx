@@ -332,8 +332,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/db/health", (_req, res) => {
     try {
       let devs  = storage.getDevices();
-      const pms   = storage.getPrintModes();
+      let pms   = storage.getPrintModes();
       let qs    = storage.getQueues();
+      const repaired: string[] = [];
 
       // Auto-repair: if no devices, seed Epson ET-8550
       if (devs.length === 0) {
@@ -348,18 +349,73 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           port: "USB001",
         });
         devs = storage.getDevices();
+        repaired.push("devices");
+      }
+
+      const devId = devs[0]?.id ?? 1;
+
+      // Auto-repair: if no print modes, seed the full DFv12 set
+      if (pms.length === 0) {
+        const pmDefs = [
+          { name: "GDIPSRW — CMYW Forever Dark Transfer",               resolution: 1440, colorProfile: "Photo 8Color 720 1pass",   renderingIntent: "Perceptual",            whiteOpacity: 92, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 8, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: true  },
+          { name: "GDIPSRW — CMYW Forever Dark Transfer with Holes",     resolution: 1440, colorProfile: "Photo 8Color 720 1pass",   renderingIntent: "Perceptual",            whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 8, mediaType: "DTF Film", inkRemoval: 1, inkRemovalHoleSize: 15, isDefault: false },
+          { name: "GDIPSRW — CMYW Forever Dark Transfer with Stripes",   resolution: 1440, colorProfile: "Photo 8Color 720 1pass",   renderingIntent: "Perceptual",            whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 8, mediaType: "DTF Film", inkRemoval: 1, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPSRW — Default",                                   resolution: 720,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 88, whiteChoke: 2, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPSRW — CMYK",                                      resolution: 720,  colorProfile: "EuroscaleCoated",         renderingIntent: "Relative Colorimetric", whiteOpacity: 85, whiteChoke: 2, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPSRW — RGB",                                       resolution: 720,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPRT — Default",                                    resolution: 720,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 85, whiteChoke: 2, cmykDensity: 95,  printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPRT — Cadlink RGB",                                resolution: 720,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPRT — 600x600 Halftone",                          resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Saturation",            whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 6, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPRT — sRGB",                                       resolution: 720,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 88, whiteChoke: 2, cmykDensity: 98,  printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPOSTS — Default",                                  resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 85, whiteChoke: 2, cmykDensity: 95,  printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPOSTS — CMYK",                                     resolution: 600,  colorProfile: "EuroscaleCoated",         renderingIntent: "Relative Colorimetric", whiteOpacity: 85, whiteChoke: 2, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDIPOSTS — RGB",                                      resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 88, whiteChoke: 2, cmykDensity: 98,  printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDISEPS — Default",                                   resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 88, whiteChoke: 2, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDISEPS — CMYK",                                      resolution: 600,  colorProfile: "EuroscaleCoated",         renderingIntent: "Relative Colorimetric", whiteOpacity: 85, whiteChoke: 2, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "GDISEPS — Color",                                     resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Saturation",            whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "BMP — ColorWhite",                                    resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 95, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "BMP — Color",                                         resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 90, whiteChoke: 3, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "BMP — Alpha",                                         resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 88, whiteChoke: 2, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "BMP — Gray",                                          resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Relative Colorimetric", whiteOpacity: 80, whiteChoke: 2, cmykDensity: 90,  printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "BMP — GrayInvert",                                    resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Relative Colorimetric", whiteOpacity: 80, whiteChoke: 2, cmykDensity: 90,  printOrder: "CMYK_W", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "TIFFPREV — Default",                                  resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 85, whiteChoke: 2, cmykDensity: 95,  printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "TIFFPREV — CMYK",                                     resolution: 600,  colorProfile: "EuroscaleCoated",         renderingIntent: "Relative Colorimetric", whiteOpacity: 85, whiteChoke: 2, cmykDensity: 100, printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+          { name: "TIFFPREV — RGB",                                      resolution: 600,  colorProfile: "sRGB",                    renderingIntent: "Perceptual",            whiteOpacity: 88, whiteChoke: 2, cmykDensity: 98,  printOrder: "W_CMYK", passCount: 4, mediaType: "DTF Film", inkRemoval: 0, inkRemovalHoleSize: 10, isDefault: false },
+        ];
+        for (const pm of pmDefs) {
+          storage.createPrintMode({ ...pm, deviceId: devId });
+        }
+        pms = storage.getPrintModes();
+        repaired.push("printModes");
       }
 
       // Auto-repair: if no queues, seed Production Queue
       if (qs.length === 0) {
         storage.createQueue({
           name: "Production Queue",
-          status: "idle",
-          deviceId: devs[0]?.id ?? 1,
-          printModeId: null,
-          substrate: "#1a1a2e",
+          status: "running",
+          deviceId: devId,
+          printModeId: pms.find(p => p.isDefault)?.id ?? pms[0]?.id ?? null,
+          layoutMode: "order_nest",
+          autoProcess: true,
+          gangSheet: true,
+          sheetWidth: 13.0,
+          sheetHeight: 19.0,
+          substrateColor: "#ffffff",
+        });
+        storage.createQueue({
+          name: "Proofing Queue",
+          status: "stopped",
+          deviceId: devId,
+          printModeId: pms[0]?.id ?? null,
+          layoutMode: "order_page",
+          autoProcess: false,
+          gangSheet: false,
+          sheetWidth: 13.0,
+          sheetHeight: 19.0,
         });
         qs = storage.getQueues();
+        repaired.push("queues");
       }
 
       res.json({
@@ -368,7 +424,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         printModes: pms.length,
         queues: qs.length,
         hasEpsonET8550: devs.some(d => d.name.includes("ET-8550")),
-        repaired: true,
+        repaired: repaired.length > 0 ? repaired : false,
       });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e.message });
@@ -818,6 +874,77 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Health ────────────────────────────────────────────────────────────────────
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", version: "1.0.0", app: "Manhattan RIP X" });
+  });
+
+  // ── Server Log Ring (last 200 lines from console intercept in index.ts) ─────
+  app.get("/api/server-log", (_req, res) => {
+    // LOG_RING is defined in index.ts and accessible via global
+    const ring = (global as any).__MRX_LOG_RING__ || [];
+    res.json({ lines: ring, count: ring.length });
+  });
+
+  // ── Upload by local file path (Electron IPC: app:uploadFile) ────────────────
+  // Electron main.js calls this to hand off a local file path for upload
+  app.post("/api/upload/path", async (req, res) => {
+    const { filePath, queueId } = req.body as { filePath?: string; queueId?: number };
+    if (!filePath) return res.status(400).json({ error: "filePath is required" });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: `File not found: ${filePath}` });
+
+    const targetQueueId = queueId ? Number(queueId) : 1;
+    const originalExt = path.extname(filePath).toLowerCase();
+    const baseName = path.basename(filePath);
+    const fileType = originalExt.replace(".", "").toUpperCase() || "PNG";
+    const fileSize = fs.statSync(filePath).size;
+
+    const job = storage.createJob({
+      queueId: targetQueueId,
+      name: baseName,
+      fileName: baseName,
+      fileType,
+      status: "pending",
+      width: 10,
+      height: 10,
+      copies: 1,
+      rotation: 0,
+      scalePercent: 100,
+      posX: 0.5,
+      posY: 0.5,
+      inkCost: 0,
+      ripProgress: 0,
+      filePath,
+      fileSize,
+      colorAdjustBrightness: 0,
+      colorAdjustContrast: 0,
+      colorAdjustSaturation: 0,
+    });
+
+    // Auto-trigger RIP in background
+    ripJobWithTracking(
+      job.id,
+      filePath,
+      { widthInches: 10, heightInches: 10, dpi: 300, brightness: 0, contrast: 0, saturation: 0, whiteOpacity: 90 },
+      (jobId, pct) => {
+        storage.updateJob(jobId, { ripProgress: pct, status: "processing" });
+        sendSSE(jobId, { type: "progress", jobId, pct });
+      },
+      (jobId, result) => {
+        storage.updateJob(jobId, {
+          status: "pending", ripProgress: 100,
+          previewData: result.previewBase64,
+          pixelWidth: result.pixelWidth, pixelHeight: result.pixelHeight,
+          dpi: result.dpi, fileSize: result.fileSize, inkCost: result.inkCost,
+          width:  Math.round((result.pixelWidth  / result.dpi) * 100) / 100,
+          height: Math.round((result.pixelHeight / result.dpi) * 100) / 100,
+        });
+        sendSSE(jobId, { type: "complete", jobId, result });
+      },
+      (jobId, err) => {
+        storage.updateJob(jobId, { status: "error", ripProgress: 0 });
+        sendSSE(jobId, { type: "error", jobId, message: err });
+      }
+    );
+
+    res.json({ job, message: "File path registered, RIP started" });
   });
 
   // ── Ink Levels (ET-8550 CMYKWW 6-channel) ────────────────────────────────────

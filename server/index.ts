@@ -7,6 +7,26 @@ import { initStorage } from "./storage";
 const app = express();
 const httpServer = createServer(app);
 
+// ── In-memory server log ring buffer (last 200 lines) ──────────────────────
+const LOG_RING: { t: string; level: string; msg: string }[] = [];
+const LOG_MAX = 200;
+
+function pushLog(level: string, ...args: any[]) {
+  const msg = args.map(a => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+  LOG_RING.push({ t: new Date().toISOString(), level, msg });
+  if (LOG_RING.length > LOG_MAX) LOG_RING.shift();
+  // Expose on global so routes.ts can access it at runtime
+  (global as any).__MRX_LOG_RING__ = LOG_RING;
+}
+
+// Intercept console.log / warn / error so everything shows in /api/server-log
+const _origLog = console.log.bind(console);
+const _origWarn = console.warn.bind(console);
+const _origErr = console.error.bind(console);
+console.log   = (...a) => { pushLog("info",  ...a); _origLog(...a); };
+console.warn  = (...a) => { pushLog("warn",  ...a); _origWarn(...a); };
+console.error = (...a) => { pushLog("error", ...a); _origErr(...a); };
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;

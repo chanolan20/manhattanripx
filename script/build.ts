@@ -50,17 +50,31 @@ const allowlist = [
   "zod",
   "zod-validation-error",
   // ── CRITICAL: must be inlined — not available in packaged app node_modules ──
-  // jimp and all its sub-packages (pure JS, safe to bundle)
+  // jimp and ALL its sub-packages + transitive deps (pure JS, safe to bundle)
   "jimp",
   "@jimp/core",
   "@jimp/types",
   "@jimp/plugins",
   "@jimp/utils",
+  "@jimp/diff",
+  // image format decoders
   "@jimp/js-jpeg",
   "@jimp/js-png",
   "@jimp/js-bmp",
   "@jimp/js-tiff",
   "@jimp/js-gif",
+  // jimp transitive deps — MUST be bundled or Jimp can't read any images
+  "pngjs",          // @jimp/js-png → pngjs
+  "jpeg-js",        // @jimp/js-jpeg → jpeg-js
+  "bmp-ts",         // @jimp/js-bmp → bmp-ts
+  "utif2",          // @jimp/js-tiff → utif2
+  "gifwrap",        // @jimp/js-gif → gifwrap
+  "omggif",         // @jimp/js-gif → omggif
+  "tinycolor2",     // @jimp/plugin-color → tinycolor2
+  "image-q",        // @jimp/plugin-quantize → image-q
+  "pixelmatch",     // @jimp/diff → pixelmatch
+  "any-base",       // @jimp/plugin-hash → any-base
+  // jimp plugins
   "@jimp/plugin-resize",
   "@jimp/plugin-crop",
   "@jimp/plugin-rotate",
@@ -79,6 +93,8 @@ const allowlist = [
   "@jimp/plugin-scale",
   "@jimp/plugin-shadow",
   "@jimp/plugin-threshold",
+  "@jimp/plugin-circle",
+  "@jimp/plugin-hash",
   // ── sql.js: pure JS/WASM SQLite — zero native deps, must be bundled ──
   "sql.js",
   // other pure-JS server deps that may not be in Electron node_modules

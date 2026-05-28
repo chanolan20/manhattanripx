@@ -214,10 +214,12 @@ export default function MainApp() {
   const handleOpenJob = useCallback(async () => {
     const eAPI = (window as any).electronAPI;
     if (eAPI?.openFileDialog) {
-      const result = await eAPI.openFileDialog();
-      if (!result.canceled && result.filePaths.length > 0) {
+      // openFileDialog() returns string[] (file paths), NOT {canceled, filePaths}
+      const filePaths = await eAPI.openFileDialog();
+      const paths: string[] = Array.isArray(filePaths) ? filePaths : [];
+      if (paths.length > 0) {
         await uploadFilesToQueue(
-          result.filePaths,
+          paths,
           activeQueueId,
           (name) => {
             invalidateJobs();
@@ -226,6 +228,23 @@ export default function MainApp() {
           (name, err) => toast({ title: `Upload failed: ${name} — ${err}`, variant: "destructive" }),
         );
       }
+    } else {
+      // Fallback: use hidden file input for browser/web mode
+      const input = document.createElement("input");
+      input.type = "file";
+      input.multiple = true;
+      input.accept = ".png,.jpg,.jpeg,.tif,.tiff,.bmp,.pdf,.psd,.ai,.eps,.svg";
+      input.onchange = async () => {
+        if (!input.files || input.files.length === 0) return;
+        const files = Array.from(input.files);
+        await uploadFilesToQueue(
+          files,
+          activeQueueId,
+          (name) => { invalidateJobs(); toast({ title: `"${name}" added to queue` }); },
+          (name, err) => toast({ title: `Upload failed: ${name} — ${err}`, variant: "destructive" }),
+        );
+      };
+      input.click();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeQueueId]);
