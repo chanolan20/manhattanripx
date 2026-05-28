@@ -65,6 +65,8 @@ export default function SmartBar({ job, queue, onUpdate, onPrint, onOpenColorMgm
         whiteOpacityOverride: job.whiteOpacityOverride ?? undefined,
         whiteChokeOverride: job.whiteChokeOverride ?? undefined,
         notes: job.notes ?? "",
+        tacLimit: (job as any).tacLimit ?? 320,
+        spotColorEnabled: (job as any).spotColorEnabled ?? false,
       });
       setSelectedPrintModeId(job.printModeId ?? (printModes[0]?.id ?? null));
     } else {
@@ -317,6 +319,35 @@ export default function SmartBar({ job, queue, onUpdate, onPrint, onOpenColorMgm
                 ↺ reset
               </button>
             )}
+          </div>
+
+          {/* Row 4b: MaxInk + SpotColor (DF v12 SmartBar Job tab) */}
+          <div className="flex items-center gap-3 px-2 pb-1 border-b border-border/30">
+            <span className="text-[9px] text-muted-foreground/60 shrink-0">MaxInk:</span>
+            <div className="flex items-center gap-1 flex-1">
+              <input
+                type="range"
+                min={100} max={390} step={10}
+                value={(local as any).tacLimit ?? 320}
+                onChange={e => set("tacLimit" as any, parseInt(e.target.value, 10))}
+                className="flex-1 h-1.5 accent-primary cursor-pointer"
+              />
+              <span className="text-[10px] font-mono text-primary w-8 text-right shrink-0">
+                {(local as any).tacLimit ?? 320}%
+              </span>
+            </div>
+            <button
+              className={`text-[9px] px-1.5 py-0.5 rounded border flex items-center gap-1 shrink-0 transition-colors ${
+                (local as any).spotColorEnabled
+                  ? "bg-purple-900/30 border-purple-600/50 text-purple-300"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => set("spotColorEnabled" as any, !((local as any).spotColorEnabled ?? false))}
+              title="Toggle Spot Color mode (DF v12 SpotColor)"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+              Spot
+            </button>
           </div>
 
           {/* Row 5: Easy Color Adjustments */}

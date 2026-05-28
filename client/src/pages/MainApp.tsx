@@ -74,19 +74,26 @@ async function uploadFilesToQueue(
         else onSuccess(file.split(/[/\\]/).pop() || file);
       }
     } else {
-      // Browser File object (drag-drop or file input in non-Electron)
+      // Browser File object (drag-drop or file input)
+      // Always use absolute URL so it works whether the renderer loaded via
+      // file:// (initial load) or http://localhost:5000 (after backend ready)
       await new Promise<void>((resolve) => {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("queueId", String(queueId));
+        const eAPI = (window as any).electronAPI;
+        const port = 5000;
+        const base = eAPI?.isElectron
+          ? `http://localhost:${port}`
+          : (window.location.origin.startsWith('file:') ? `http://localhost:${port}` : '');
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/upload");
+        xhr.open("POST", `${base}/api/upload`);
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) onSuccess(file.name);
-          else onError(file.name, `HTTP ${xhr.status}`);
+          else onError(file.name, `Server error ${xhr.status}: ${xhr.responseText.slice(0,120)}`);
           resolve();
         };
-        xhr.onerror = () => { onError(file.name, "Network error"); resolve(); };
+        xhr.onerror = () => { onError(file.name, "Cannot reach print server — is it still starting?"); resolve(); };
         xhr.send(formData);
       });
     }

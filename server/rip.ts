@@ -10,6 +10,7 @@ import { promisify } from "util";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { applyEasyColorAdj } from "./imageTools";
 
 const execAsync = promisify(exec);
 
@@ -163,14 +164,28 @@ export async function ripFile(
   if (opts.mirrorH) img.flip({ horizontal: true });
   if (opts.mirrorV) img.flip({ vertical: true });
 
-  // ── Step 4: Apply brightness / contrast / saturation ────────────────────
+  // ── Step 4: Apply EasyColorAdj (DF v12 B1-B20, S1-S20, M100-M390) ─────────
   const brightness = opts.brightness || 0;
   const contrast   = opts.contrast   || 0;
   const saturation = opts.saturation || 0;
   const colorBoost = opts.colorBoost || 0;
 
-  if (brightness !== 0) img.brightness(brightness / 100);
-  if (contrast   !== 0) img.contrast(contrast   / 100);
+  // DF v12 EasyColorAdj devicelink chain: MaxInk → Brightness → Saturation
+  const easyB = brightness > 0 ? Math.max(1, Math.min(20, Math.round((brightness / 100) * 20))) : 0;
+  const easyS = saturation > 0 ? Math.max(1, Math.min(20, Math.round((saturation / 100) * 20))) : 0;
+  const tacLimitOpt = opts.tacLimit || 0;
+  const easyM = tacLimitOpt > 0 && tacLimitOpt !== 320 ? tacLimitOpt : 0;
+
+  if (easyB > 0 || easyS > 0 || easyM > 0) {
+    applyEasyColorAdj(img, {
+      brightness: easyB > 0 ? easyB : undefined,
+      saturation: easyS > 0 ? easyS : undefined,
+      maxInk:     easyM > 0 ? easyM : undefined,
+    });
+  } else {
+    if (brightness !== 0) img.brightness(brightness / 100);
+    if (contrast   !== 0) img.contrast(contrast   / 100);
+  }
 
   onProgress(50);
 

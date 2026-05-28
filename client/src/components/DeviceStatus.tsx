@@ -1,7 +1,7 @@
 import type { Device } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Printer, Wifi, WifiOff, Activity, AlertTriangle, Check, RefreshCw, ChevronDown } from "lucide-react";
+import { Printer, Wifi, WifiOff, Activity, AlertTriangle, Check, RefreshCw, ChevronDown, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import DriverInstaller from "@/components/DriverInstaller";
 
 interface Props {
   device: Device | null;
@@ -127,6 +128,7 @@ const PRINTER_REGISTRY: Record<string, { id: string; name: string }[]> = {
 export default function DeviceStatus({ device }: Props) {
   const [testing, setTesting] = useState(false);
   const [selectedPrinterBrand, setSelectedPrinterBrand] = useState("Epson");
+  const [showDriverInstaller, setShowDriverInstaller] = useState(false);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) =>
@@ -210,6 +212,15 @@ export default function DeviceStatus({ device }: Props) {
             onClick={() => updateMutation.mutate({ id: device.id, data: { status: device.status === "online" ? "offline" : "online" } })}
           >
             Toggle Status
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-3 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => setShowDriverInstaller(!showDriverInstaller)}
+          >
+            <Download className="w-3 h-3" />
+            {showDriverInstaller ? "Hide Driver Manager" : "Driver Manager"}
           </Button>
         </div>
       </div>
@@ -370,6 +381,13 @@ export default function DeviceStatus({ device }: Props) {
           <Check className="w-3 h-3" /> All channels healthy — no clogged nozzles detected
         </p>
       </div>
+
+      {/* Driver Installer Panel */}
+      {showDriverInstaller && (
+        <div className="bg-card border border-border rounded-lg p-4">
+          <DriverInstaller />
+        </div>
+      )}
 
       {/* Feature Flags */}
       <div className="bg-card border border-border rounded-lg p-3">

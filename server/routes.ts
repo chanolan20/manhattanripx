@@ -16,6 +16,7 @@ import { separateArt } from "./separationEngine";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { detectPrinters, installPrinterDriver, findBestPrinterMatch } from "./windowsPrinter";
 
 // ── Multer upload config ─────────────────────────────────────────────────────
 // UPLOADS_DIR is injected by Electron's main.js using app.getPath('userData')
@@ -702,6 +703,40 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Separation failed" });
+    }
+  });
+
+  // ── Printer Detection (live WMIC on Windows, lpstat on macOS) ──────────────────
+  app.get("/api/printers/detect", async (_req, res) => {
+    try {
+      const printers = await detectPrinters();
+      res.json({ printers, platform: process.platform, count: printers.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message, printers: [] });
+    }
+  });
+
+  // ── Driver Installation (pnputil on Windows, simulated on macOS) ──────────────
+  app.post("/api/drivers/install", async (req, res) => {
+    const { infPath } = req.body as { infPath?: string };
+    try {
+      const result = await installPrinterDriver(infPath);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message, requiresReboot: false });
+    }
+  });
+
+  // ── PDF RIP endpoint ───────────────────────────────────────────────────────────
+  app.post("/api/rip/pdf", upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No PDF uploaded" });
+    try {
+      const { ripPDF } = await import("./imageTools");
+      const dpi = req.body.dpi ? parseInt(req.body.dpi, 10) : 300;
+      const result = await ripPDF(req.file.path, dpi);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "PDF RIP failed" });
     }
   });
 
