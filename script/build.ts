@@ -1,6 +1,10 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, copyFile } from "fs/promises";
+import { existsSync } from "fs";
+import { resolve, dirname } from "path";
+import { createRequire } from "module";
+const _require = createRequire(import.meta.url);
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -59,6 +63,8 @@ const allowlist = [
   "@jimp/plugin-scale",
   "@jimp/plugin-shadow",
   "@jimp/plugin-threshold",
+  // ── sql.js: pure JS/WASM SQLite — zero native deps, must be bundled ──
+  "sql.js",
   // other pure-JS server deps that may not be in Electron node_modules
   "ipp",
   "form-data",
@@ -68,6 +74,9 @@ const allowlist = [
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
+
+  // After build, copy sql-wasm.wasm into dist/ so the server can find it at runtime
+  // This runs after esbuild below
 
   console.log("building client...");
   await viteBuild();
@@ -93,6 +102,18 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  // Copy sql-wasm.wasm into dist/ so the bundled sql.js can load it
+  try {
+    const sqlJsMain = _require.resolve("sql.js");
+    const wasmSrc = resolve(dirname(sqlJsMain), "sql-wasm.wasm");
+    if (existsSync(wasmSrc)) {
+      await copyFile(wasmSrc, "dist/sql-wasm.wasm");
+      console.log("copied sql-wasm.wasm to dist/");
+    }
+  } catch (e) {
+    console.warn("Warning: could not copy sql-wasm.wasm:", e);
+  }
 }
 
 buildAll().catch((err) => {
