@@ -70,6 +70,18 @@ const allowlist = [
   "form-data",
   "i18next",
   "i18next-http-middleware",
+  // file watching — used by hot folders; must be bundled (not in packaged node_modules)
+  "chokidar",
+  "fsevents",
+  "readdirp",
+  "anymatch",
+  "braces",
+  "fill-range",
+  "is-extglob",
+  "is-glob",
+  "glob-parent",
+  "normalize-path",
+  "picomatch",
 ];
 
 async function buildAll() {
